@@ -50,6 +50,69 @@ export function drawBackground(ctx, cam, def) {
   drawClouds(ctx, cam, def);
   // Parallax hills.
   drawHills(ctx, cam, def);
+  // Foreground scenery (bushes / fences) just above the ground line.
+  drawScenery(ctx, cam, def);
+}
+
+function drawScenery(ctx, cam, def) {
+  const offset = cam.x * 0.8;
+  const baseY = VIEW_H - TILE * 2;
+  const r = rng(def.width * 11 + 5);
+  const bush = def.bg === "night" ? "#1f6e3a" : def.bg === "dusk" ? "#7a4a8a" : "#43c043";
+  const bushDark = def.bg === "night" ? "#155029" : def.bg === "dusk" ? "#5a3568" : "#2e8b2e";
+  for (let i = 0; i < def.width / 6; i++) {
+    const baseX = i * 6 * TILE + r() * 120;
+    const sx = baseX - offset;
+    if (sx < -120 || sx > VIEW_W + 120) {
+      r(); // keep the sequence advancing for stability
+      continue;
+    }
+    if (r() > 0.5) {
+      bushShape(ctx, sx, baseY, bush, bushDark);
+    } else {
+      fenceShape(ctx, sx, baseY, def.bg === "night" ? "#9a9a9a" : "#e8e8e8");
+    }
+  }
+}
+
+function bushShape(ctx, x, baseY, color, dark) {
+  ctx.fillStyle = dark;
+  ctx.fillRect(x - 36, baseY - 6, 72, 8);
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x - 24, baseY - 4, 16, Math.PI, 0);
+  ctx.arc(x, baseY - 4, 22, Math.PI, 0);
+  ctx.arc(x + 24, baseY - 4, 16, Math.PI, 0);
+  ctx.fill();
+}
+
+function fenceShape(ctx, x, baseY, color) {
+  ctx.fillStyle = color;
+  ctx.strokeStyle = "rgba(0,0,0,0.25)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 4; i++) {
+    const px = x + i * 12;
+    ctx.fillRect(px, baseY - 22, 6, 22);
+    ctx.strokeRect(px + 0.5, baseY - 22.5, 6, 22);
+  }
+  ctx.fillRect(x, baseY - 16, 42, 5);
+}
+
+// A single firework burst for the level-clear celebration.
+export function drawFirework(ctx, x, y, t, color) {
+  const rad = 8 + t * 60;
+  const alpha = Math.max(0, 1 - t);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  for (let i = 0; i < 12; i++) {
+    const ang = (i / 12) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.arc(x + Math.cos(ang) * rad, y + Math.sin(ang) * rad, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
 }
 
 function drawClouds(ctx, cam, def) {
@@ -129,6 +192,7 @@ function drawTile(ctx, ch, x, y, world, col, row, time) {
       break;
     case T.QBLOCK_COIN:
     case T.QBLOCK_MUSH:
+    case T.QBLOCK_STAR:
     case T.QBLOCK_1UP:
       questionBlock(ctx, x, y, time);
       break;

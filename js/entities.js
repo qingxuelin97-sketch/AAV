@@ -12,11 +12,14 @@ import {
   FRICTION,
   AIR_FRICTION,
   JUMP_VELOCITY,
+  JUMP_VELOCITY_RUN,
   JUMP_CUTOFF,
   COYOTE_TIME,
   JUMP_BUFFER,
   ENEMY_SPEED,
   STOMP_BOUNCE,
+  FIREBALL_SPEED,
+  FIREBALL_BOUNCE,
 } from "./constants.js";
 import * as Sprites from "./sprites.js";
 
@@ -24,7 +27,6 @@ import * as Sprites from "./sprites.js";
 // from registering as an overlap while still catching sub-pixel penetration.
 const EPS = 0.001;
 
-// Resolve horizontal movement against solid tiles. Returns true if a wall hit.
 function collideX(body, world) {
   let hit = false;
   const top = Math.floor(body.y / TILE);
@@ -53,7 +55,6 @@ function collideX(body, world) {
   return hit;
 }
 
-// Resolve vertical movement. Sets body.onGround; returns {ground, ceiling}.
 function collideY(body, world) {
   let ceiling = false;
   const left = Math.floor(body.x / TILE);
@@ -63,7 +64,7 @@ function collideY(body, world) {
     const row = Math.floor((body.y + body.h - EPS) / TILE);
     for (let c = left; c <= right; c++) {
       if (world.isSolid(c, row)) {
-        body.y = row * TILE - body.h; // rest flush on the tile top
+        body.y = row * TILE - body.h;
         body.vy = 0;
         break;
       }
@@ -81,8 +82,6 @@ function collideY(body, world) {
     }
   }
 
-  // Ground is detected by probing the tile directly beneath the feet, so a body
-  // resting flush on a surface stays grounded without jitter.
   let ground = false;
   const footRow = Math.floor((body.y + body.h) / TILE);
   for (let c = left; c <= right; c++) {
@@ -91,7 +90,6 @@ function collideY(body, world) {
       break;
     }
   }
-
   body.onGround = ground;
   return { ground, ceiling };
 }
@@ -129,41 +127,50 @@ class Body {
 export class Player extends Body {
   constructor(x, y) {
     super(x, y, 22, 28);
-    this.power = "small"; // small | big
+    this.power = "small"; // small | big | fire
     this.facing = 1;
     this.walkTimer = 0;
     this.walkFrame = 0;
     this.coyote = 0;
     this.jumpBuffer = 0;
     this.jumpHeld = false;
-    this.invincible = 0; // i-frames after taking damage
+    this.invincible = 0;
     this.starTime = 0;
     this.alive = true;
-    this.enteringFlag = false;
     this.controllable = true;
+    this.skid = false;
+    this.fireCooldown = 0;
+  }
+
+  get isBig() {
+    return this.h > 40;
   }
 
   setPower(p) {
-    const wasSmall = this.power === "small";
-    this.power = p;
-    if (p === "big" && wasSmall) {
-      // Grow upward, keep feet planted.
+    const wasBig = this.isBig;
+    const willBig = p !== "small";
+    if (willBig && !wasBig) {
       this.y -= 28;
       this.w = 26;
       this.h = 56;
-    } else if (p === "small") {
+    } else if (!willBig && wasBig) {
       this.y += this.h - 28;
       this.w = 22;
       this.h = 28;
     }
+    this.power = p;
+  }
+
+  giveStar() {
+    this.starTime = 10;
   }
 
   damage(game) {
     if (this.invincible > 0 || this.starTime > 0) return;
-    if (this.power === "big") {
+    if (this.power !== "small") {
       this.setPower("small");
-      this.invincible = 1.6;
-      game.audio.pipe();
+      this.invincible = 1.7;
+      game.audio.powerdown();
     } else {
       game.killPlayer();
     }
@@ -171,9 +178,14 @@ export class Player extends Body {
 
   update(dt, input, world, game) {
     if (!this.alive) return;
-
     if (this.invincible > 0) this.invincible -= dt;
-    if (this.starTime > 0) this.starTime -= dt;
+    if (this.starTime > 0) {
+      this.starTime -= dt;
+      if (this.starTime <= 0) game.onStarEnd?.();
+    }
+    if (this.fireCooldown > 0) this.fireCooldown -= dt;
+
+    this.skid = false;
 
     if (this.controllable) {
       const running = input.state.run;
@@ -185,24 +197,32 @@ export class Player extends Body {
       if (input.state.right) dir += 1;
 
       if (dir !== 0) {
+        // Skidding: pressing opposite to current momentum.
+        if (this.onGround && Math.sign(this.vx) === -dir && Math.abs(this.vx) > 40) {
+          this.skid = true;
+        }
         this.vx += dir * accel * dt;
         this.facing = dir;
         this.vx = Math.max(-maxSpeed, Math.min(maxSpeed, this.vx));
       } else {
-        // Friction.
         const f = (this.onGround ? FRICTION : AIR_FRICTION) * dt;
         if (this.vx > 0) this.vx = Math.max(0, this.vx - f);
         else if (this.vx < 0) this.vx = Math.min(0, this.vx + f);
       }
 
-      // Jump with coyote time + input buffering.
+      // Throw a fireball (fire Mario only).
+      if (this.power === "fire" && this.fireCooldown <= 0 && input.consume("run")) {
+        if (game.spawnFireball(this)) this.fireCooldown = 0.28;
+      }
+
+      // Jump with coyote time + input buffering + variable height.
       if (input.consume("jump")) this.jumpBuffer = JUMP_BUFFER;
       if (this.jumpBuffer > 0) this.jumpBuffer -= dt;
       if (this.onGround) this.coyote = COYOTE_TIME;
       else if (this.coyote > 0) this.coyote -= dt;
 
       if (this.jumpBuffer > 0 && this.coyote > 0) {
-        this.vy = JUMP_VELOCITY;
+        this.vy = Math.abs(this.vx) > WALK_MAX ? JUMP_VELOCITY_RUN : JUMP_VELOCITY;
         this.onGround = false;
         this.coyote = 0;
         this.jumpBuffer = 0;
@@ -210,7 +230,6 @@ export class Player extends Body {
         game.audio.jump();
       }
 
-      // Variable jump height: cut velocity when the jump key is released.
       if (this.jumpHeld && !input.state.jump && this.vy < 0) {
         this.vy *= JUMP_CUTOFF;
         this.jumpHeld = false;
@@ -220,10 +239,8 @@ export class Player extends Body {
       this.vx = this.autoVx || 0;
     }
 
-    // Gravity.
     this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt);
 
-    // Move + collide.
     this.x += this.vx * dt;
     collideX(this, world);
     this.y += this.vy * dt;
@@ -234,22 +251,18 @@ export class Player extends Body {
       this._bumpRow = null;
     }
 
-    // Keep inside left edge.
     if (this.x < 0) {
       this.x = 0;
       this.vx = 0;
     }
 
-    // Walk animation.
     if (this.onGround && Math.abs(this.vx) > 12) {
       this.walkTimer += Math.abs(this.vx) * dt;
-      const period = 18;
-      this.walkFrame = Math.floor(this.walkTimer / period) % 2 === 0 ? 1 : 2;
+      this.walkFrame = Math.floor(this.walkTimer / 18) % 2 === 0 ? 1 : 2;
     } else {
       this.walkFrame = 0;
     }
 
-    // Fell into a pit.
     if (this.y > world.pixelHeight + 80) {
       game.killPlayer(true);
     }
@@ -263,8 +276,10 @@ export class Player extends Body {
         facing: this.facing,
         walkFrame: this.walkFrame,
         jumping: !this.onGround,
-        big: this.power === "big",
-        invincible: this.invincible > 0 || this.starTime > 0,
+        power: this.power,
+        invincible: this.invincible > 0,
+        star: this.starTime > 0,
+        skid: this.skid,
       }
     );
   }
@@ -280,24 +295,20 @@ export class Goomba extends Body {
     this.walkTimer = 0;
     this.walkFrame = 0;
     this.squashTime = 0;
-    this.state = "walk"; // walk | squashed | flipped
+    this.state = "walk";
   }
-
   squash(game) {
     this.state = "squashed";
     this.squashTime = 0.4;
     this.vx = 0;
     game.audio.stomp();
   }
-
-  // Knocked away by a shell or star.
   flip(dir, game) {
     this.state = "flipped";
-    this.vy = -300;
-    this.vx = 60 * dir;
-    game.audio.stomp();
+    this.vy = -320;
+    this.vx = 70 * dir;
+    game.audio.kick();
   }
-
   update(dt, world) {
     if (this.state === "squashed") {
       this.squashTime -= dt;
@@ -311,29 +322,23 @@ export class Goomba extends Body {
       if (this.y > world.pixelHeight + 100) this.dead = true;
       return;
     }
-
     this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt);
     this.x += this.vx * dt;
     if (collideX(this, world)) this.vx = -this.vx;
     this.y += this.vy * dt;
     collideY(this, world);
-
-    // Turn around at ledges so they stay on platforms.
     if (this.onGround) {
       const aheadCol = Math.floor((this.vx > 0 ? this.x + this.w + 2 : this.x - 2) / TILE);
       const footRow = Math.floor((this.y + this.h + 2) / TILE);
       if (!world.isSolid(aheadCol, footRow)) this.vx = -this.vx;
     }
-
     if (this.y > world.pixelHeight + 100) this.dead = true;
-
     this.walkTimer += dt;
     if (this.walkTimer > 0.18) {
       this.walkTimer = 0;
       this.walkFrame ^= 1;
     }
   }
-
   draw(ctx) {
     Sprites.drawGoomba(
       ctx,
@@ -352,39 +357,34 @@ export class Koopa extends Body {
     this.vx = -ENEMY_SPEED;
     this.walkTimer = 0;
     this.walkFrame = 0;
-    this.state = "walk"; // walk | shell | spin
+    this.state = "walk";
     this.facing = -1;
     this.shellTimer = 0;
   }
-
   toShell(game) {
     this.state = "shell";
-    this.shellTimer = 6; // revives if left alone
+    this.shellTimer = 6;
     this.vx = 0;
     this.h = 26;
     this.y += 14;
     game.audio.stomp();
   }
-
   kick(dir, game) {
     this.state = "spin";
-    this.vx = 320 * dir;
-    game.audio.bump();
+    this.vx = 330 * dir;
+    game.audio.kick();
   }
-
   stopShell() {
     this.state = "shell";
     this.shellTimer = 6;
     this.vx = 0;
   }
-
   flip(dir, game) {
     this.state = "flipped";
-    this.vy = -300;
-    this.vx = 60 * dir;
-    game.audio.stomp();
+    this.vy = -320;
+    this.vx = 70 * dir;
+    game.audio.kick();
   }
-
   update(dt, world) {
     if (this.state === "flipped") {
       this.vy += GRAVITY * dt;
@@ -393,41 +393,33 @@ export class Koopa extends Body {
       if (this.y > world.pixelHeight + 100) this.dead = true;
       return;
     }
-
     if (this.state === "shell") {
       this.shellTimer -= dt;
       if (this.shellTimer <= 0) {
-        // Revive to walking koopa.
         this.state = "walk";
         this.h = 40;
         this.y -= 14;
         this.vx = -ENEMY_SPEED;
       }
     }
-
     this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt);
     this.x += this.vx * dt;
     if (collideX(this, world)) this.vx = -this.vx;
     this.y += this.vy * dt;
     collideY(this, world);
-
     if (this.state === "walk" && this.onGround) {
       const aheadCol = Math.floor((this.vx > 0 ? this.x + this.w + 2 : this.x - 2) / TILE);
       const footRow = Math.floor((this.y + this.h + 2) / TILE);
       if (!world.isSolid(aheadCol, footRow)) this.vx = -this.vx;
     }
-
     if (this.vx !== 0) this.facing = this.vx > 0 ? 1 : -1;
-
     if (this.y > world.pixelHeight + 100) this.dead = true;
-
     this.walkTimer += dt;
     if (this.walkTimer > 0.18) {
       this.walkTimer = 0;
       this.walkFrame ^= 1;
     }
   }
-
   draw(ctx) {
     Sprites.drawKoopa(
       ctx,
@@ -443,26 +435,88 @@ export class Koopa extends Body {
 }
 
 // --------------------------------------------------------------------------
-// Mushroom / 1-Up
+// Piranha Plant — rises out of a pipe on a cycle, ducks when Mario is close.
+// --------------------------------------------------------------------------
+export class PiranhaPlant extends Body {
+  constructor(col, pipeTopRow) {
+    // Centered over the two-tile-wide pipe.
+    super((col + 1) * TILE - 14, pipeTopRow * TILE, 28, 36);
+    this.kind = "piranha";
+    this.openingTop = pipeTopRow * TILE;
+    this.maxRise = 38;
+    this.phase = "down";
+    this.timer = 1.0;
+    this.rise = 0; // 0 = hidden, maxRise = fully out
+    this.mouthTimer = 0;
+    this.mouthOpen = false;
+    this.pipeCenter = (col + 1) * TILE;
+  }
+  get active() {
+    return this.rise > 12; // only dangerous / killable when sufficiently out
+  }
+  update(dt, world, player) {
+    const playerNear = player && Math.abs(player.cx - this.pipeCenter) < TILE * 2.2;
+    switch (this.phase) {
+      case "down":
+        this.timer -= dt;
+        if (this.timer <= 0 && !playerNear) {
+          this.phase = "rising";
+        }
+        break;
+      case "rising":
+        this.rise = Math.min(this.maxRise, this.rise + 60 * dt);
+        if (this.rise >= this.maxRise) {
+          this.phase = "up";
+          this.timer = 2.0;
+        }
+        break;
+      case "up":
+        this.timer -= dt;
+        if (this.timer <= 0) this.phase = "lowering";
+        break;
+      case "lowering":
+        this.rise = Math.max(0, this.rise - 60 * dt);
+        if (this.rise <= 0) {
+          this.phase = "down";
+          this.timer = 1.6;
+        }
+        break;
+    }
+    this.y = this.openingTop - this.rise;
+    this.h = this.rise + 4;
+    this.mouthTimer += dt;
+    if (this.mouthTimer > 0.3) {
+      this.mouthTimer = 0;
+      this.mouthOpen = !this.mouthOpen;
+    }
+  }
+  draw(ctx) {
+    if (this.rise <= 1) return;
+    Sprites.drawPiranha(
+      ctx,
+      { x: this.x, y: this.openingTop - this.maxRise, w: this.w, h: this.maxRise + 6 },
+      { mouthOpen: this.mouthOpen }
+    );
+  }
+}
+
+// --------------------------------------------------------------------------
+// Items: Mushroom, Fire Flower, Star
 // --------------------------------------------------------------------------
 export class Mushroom extends Body {
   constructor(x, y, oneUp = false) {
     super(x, y, 26, 26);
+    this.kind = oneUp ? "1up" : "mushroom";
     this.oneUp = oneUp;
     this.vx = 0;
-    this.emerging = TILE; // pixels left to rise out of the block
-    this.spawned = false;
+    this.emerging = TILE;
   }
-
   update(dt, world) {
     if (this.emerging > 0) {
-      const rise = 40 * dt;
+      const rise = 44 * dt;
       this.y -= rise;
       this.emerging -= rise;
-      if (this.emerging <= 0) {
-        this.vx = ENEMY_SPEED;
-        this.spawned = true;
-      }
+      if (this.emerging <= 0) this.vx = ENEMY_SPEED;
       return;
     }
     this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt);
@@ -472,26 +526,108 @@ export class Mushroom extends Body {
     collideY(this, world);
     if (this.y > world.pixelHeight + 100) this.dead = true;
   }
-
   draw(ctx) {
     Sprites.drawMushroom(ctx, { x: this.x, y: this.y, w: this.w, h: this.h }, { oneUp: this.oneUp });
   }
 }
 
+export class FireFlower extends Body {
+  constructor(x, y) {
+    super(x, y, 26, 26);
+    this.kind = "fire";
+    this.emerging = TILE;
+    this.t = 0;
+  }
+  update(dt) {
+    this.t += dt;
+    if (this.emerging > 0) {
+      const rise = 44 * dt;
+      this.y -= rise;
+      this.emerging -= rise;
+    }
+    // Fire flower stays put once emerged.
+  }
+  draw(ctx) {
+    Sprites.drawFireFlower(ctx, { x: this.x, y: this.y, w: this.w, h: this.h });
+  }
+}
+
+export class Star extends Body {
+  constructor(x, y) {
+    super(x, y, 26, 26);
+    this.kind = "star";
+    this.emerging = TILE;
+    this.t = 0;
+  }
+  update(dt, world) {
+    this.t += dt;
+    if (this.emerging > 0) {
+      const rise = 44 * dt;
+      this.y -= rise;
+      this.emerging -= rise;
+      if (this.emerging <= 0) {
+        this.vx = ENEMY_SPEED * 1.4;
+        this.vy = -260;
+      }
+      return;
+    }
+    this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt);
+    this.x += this.vx * dt;
+    if (collideX(this, world)) this.vx = -this.vx;
+    this.y += this.vy * dt;
+    const { ground } = collideY(this, world);
+    if (ground) this.vy = -320; // bounce
+    if (this.y > world.pixelHeight + 100) this.dead = true;
+  }
+  draw(ctx) {
+    Sprites.drawStar(ctx, { x: this.x, y: this.y, w: this.w, h: this.h }, this.t);
+  }
+}
+
 // --------------------------------------------------------------------------
-// Particles (brick debris, sparkles) + floating score text
+// Fireball thrown by fire Mario.
+// --------------------------------------------------------------------------
+export class Fireball extends Body {
+  constructor(x, y, dir) {
+    super(x, y, 14, 14);
+    this.kind = "fireball";
+    this.vx = FIREBALL_SPEED * dir;
+    this.vy = 120;
+    this.life = 2.5;
+    this.t = 0;
+  }
+  update(dt, world) {
+    this.t += dt;
+    this.life -= dt;
+    if (this.life <= 0) this.dead = true;
+    this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * 0.9 * dt);
+    this.x += this.vx * dt;
+    if (collideX(this, world)) this.dead = true; // pop on walls
+    this.y += this.vy * dt;
+    const { ground } = collideY(this, world);
+    if (ground) this.vy = FIREBALL_BOUNCE; // bounce along the ground
+    if (this.y > world.pixelHeight + 100) this.dead = true;
+  }
+  draw(ctx) {
+    Sprites.drawFireball(ctx, { x: this.x, y: this.y, w: this.w, h: this.h }, this.t);
+  }
+}
+
+// --------------------------------------------------------------------------
+// Particles + floating score text
 // --------------------------------------------------------------------------
 export class Particle extends Body {
-  constructor(x, y, vx, vy, color, size = 6, life = 0.9) {
+  constructor(x, y, vx, vy, color, size = 6, life = 0.9, gravity = 0.7) {
     super(x, y, size, size);
     this.vx = vx;
     this.vy = vy;
     this.color = color;
     this.life = life;
     this.maxLife = life;
+    this.grav = gravity;
   }
   update(dt) {
-    this.vy += GRAVITY * 0.7 * dt;
+    this.vy += GRAVITY * this.grav * dt;
     this.x += this.vx * dt;
     this.y += this.vy * dt;
     this.life -= dt;

@@ -35,7 +35,10 @@ const hud = {
   world: $("hud-world"),
   time: $("hud-time"),
   lives: $("hud-lives"),
+  power: $("hud-power"),
 };
+
+const POWER_LABEL = { small: "小", big: "大", fire: "🌸" };
 
 let lastStats = null;
 let submittedId = null;
@@ -47,6 +50,7 @@ const game = new Game(canvas, input, audio, {
     hud.world.textContent = s.world;
     hud.time.textContent = s.time;
     hud.lives.textContent = "×" + s.lives;
+    hud.power.textContent = s.star ? "⭐" : POWER_LABEL[s.power] || "小";
   },
   onPause(paused) {
     if (paused) show("pause");
