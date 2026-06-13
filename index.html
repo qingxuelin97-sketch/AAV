@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Super Mario — Full-Stack Platformer</title>
+    <link rel="stylesheet" href="./css/style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="app">
+      <header class="hud" id="hud">
+        <div class="hud-item"><span class="hud-label">MARIO</span><span id="hud-score">000000</span></div>
+        <div class="hud-item"><span class="hud-label coin">🪙</span><span id="hud-coins">×00</span></div>
+        <div class="hud-item"><span class="hud-label">WORLD</span><span id="hud-world">1-1</span></div>
+        <div class="hud-item"><span class="hud-label">TIME</span><span id="hud-time">400</span></div>
+        <div class="hud-item"><span class="hud-label">LIVES</span><span id="hud-lives">×3</span></div>
+      </header>
+
+      <div class="stage">
+        <canvas id="game" width="960" height="480"></canvas>
+
+        <!-- Title / Start overlay -->
+        <div class="overlay" id="overlay-title">
+          <h1 class="logo">SUPER<br /><span>MARIO</span></h1>
+          <p class="tagline">A full-stack canvas platformer</p>
+          <button class="btn" id="btn-start">START GAME</button>
+          <div class="controls-hint">
+            <p><b>← →</b> Move &nbsp;•&nbsp; <b>Z / Space / ↑</b> Jump &nbsp;•&nbsp; <b>X / Shift</b> Run</p>
+            <p><b>P</b> Pause &nbsp;•&nbsp; <b>M</b> Mute</p>
+          </div>
+        </div>
+
+        <!-- Pause overlay -->
+        <div class="overlay hidden" id="overlay-pause">
+          <h2>PAUSED</h2>
+          <button class="btn" id="btn-resume">RESUME</button>
+          <button class="btn ghost" id="btn-quit">QUIT TO TITLE</button>
+        </div>
+
+        <!-- Game over overlay -->
+        <div class="overlay hidden" id="overlay-gameover">
+          <h2 class="danger">GAME OVER</h2>
+          <p class="final-score">Score: <span id="go-score">0</span></p>
+          <div class="name-entry">
+            <label for="player-name">Enter your name for the leaderboard:</label>
+            <input id="player-name" maxlength="16" placeholder="ANON" autocomplete="off" />
+            <button class="btn" id="btn-submit-score">SUBMIT SCORE</button>
+          </div>
+          <button class="btn ghost" id="btn-retry">PLAY AGAIN</button>
+        </div>
+
+        <!-- Win overlay -->
+        <div class="overlay hidden" id="overlay-win">
+          <h2 class="success">YOU WIN! 🏆</h2>
+          <p class="tagline">You cleared every world!</p>
+          <p class="final-score">Score: <span id="win-score">0</span></p>
+          <div class="name-entry">
+            <label for="player-name-win">Enter your name for the leaderboard:</label>
+            <input id="player-name-win" maxlength="16" placeholder="ANON" autocomplete="off" />
+            <button class="btn" id="btn-submit-score-win">SUBMIT SCORE</button>
+          </div>
+          <button class="btn ghost" id="btn-retry-win">PLAY AGAIN</button>
+        </div>
+
+        <div class="flash hidden" id="flash"></div>
+      </div>
+
+      <aside class="sidebar">
+        <h3>🏆 LEADERBOARD</h3>
+        <ol id="leaderboard" class="leaderboard">
+          <li class="empty">Loading…</li>
+        </ol>
+        <button class="btn small" id="btn-refresh-lb">REFRESH</button>
+        <div class="touch-controls" id="touch-controls">
+          <div class="pad">
+            <button data-key="left" class="tbtn">◀</button>
+            <button data-key="right" class="tbtn">▶</button>
+          </div>
+          <div class="actions">
+            <button data-key="run" class="tbtn">RUN</button>
+            <button data-key="jump" class="tbtn big">JUMP</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <footer class="page-footer">
+      Built with HTML5 Canvas + Node/Express · Use arrow keys to play
+    </footer>
+
+    <script type="module" src="./js/main.js"></script>
+  </body>
+</html>
