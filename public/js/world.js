@@ -2,7 +2,7 @@
 // and block-bump interactions (question blocks, breakable bricks, coins).
 
 import { TILE, SOLID, QBLOCKS, T } from "./constants.js";
-import { Mushroom, Particle, FloatingText } from "./entities.js";
+import { Mushroom, FireFlower, Star, Particle, FloatingText } from "./entities.js";
 
 export class World {
   constructor(def) {
@@ -43,7 +43,15 @@ export class World {
         game.collectCoin(col * TILE + TILE / 2, row * TILE, 200);
         game.spawnCoinPop(col * TILE, row * TILE);
       } else if (ch === T.QBLOCK_MUSH) {
-        game.entities.push(new Mushroom(col * TILE + 3, row * TILE, false));
+        // Mushroom when small, fire flower when already big/fire.
+        if (player.isBig) {
+          game.entities.push(new FireFlower(col * TILE + 3, row * TILE));
+        } else {
+          game.entities.push(new Mushroom(col * TILE + 3, row * TILE, false));
+        }
+        game.audio.powerup();
+      } else if (ch === T.QBLOCK_STAR) {
+        game.entities.push(new Star(col * TILE + 3, row * TILE));
         game.audio.powerup();
       } else if (ch === T.QBLOCK_1UP) {
         game.entities.push(new Mushroom(col * TILE + 3, row * TILE, true));
@@ -53,7 +61,7 @@ export class World {
     }
 
     if (ch === T.BRICK) {
-      if (player.power === "big") {
+      if (player.isBig) {
         this.setTile(col, row, T.EMPTY);
         game.audio.break_();
         game.addScore(50);

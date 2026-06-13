@@ -6,20 +6,24 @@ export const VIEW_H = 480;
 export const ROWS = VIEW_H / TILE; // 15
 
 // Physics (units: pixels, seconds). Tuned for a snappy, Mario-like feel.
-export const GRAVITY = 2300;
-export const MAX_FALL = 760;
-export const WALK_ACCEL = 900;
-export const RUN_ACCEL = 1500;
-export const WALK_MAX = 190;
-export const RUN_MAX = 320;
-export const FRICTION = 1300;
-export const AIR_FRICTION = 320;
-export const JUMP_VELOCITY = -760;
-export const JUMP_CUTOFF = 0.45; // velocity retained when jump released early
-export const COYOTE_TIME = 0.09; // grace period to still jump after leaving ground
-export const JUMP_BUFFER = 0.12; // remember a jump press this long before landing
-export const ENEMY_SPEED = 60;
-export const STOMP_BOUNCE = -430;
+export const GRAVITY = 2400;
+export const MAX_FALL = 780;
+export const WALK_ACCEL = 950;
+export const RUN_ACCEL = 1600;
+export const WALK_MAX = 185;
+export const RUN_MAX = 330;
+export const FRICTION = 1500;
+export const AIR_FRICTION = 260;
+export const JUMP_VELOCITY = -740;
+export const JUMP_VELOCITY_RUN = -820; // a touch higher at speed
+export const JUMP_CUTOFF = 0.42; // velocity retained when jump released early
+export const COYOTE_TIME = 0.1; // grace period to still jump after leaving ground
+export const JUMP_BUFFER = 0.13; // remember a jump press this long before landing
+export const ENEMY_SPEED = 58;
+export const STOMP_BOUNCE = -440;
+export const STAR_TIME = 10; // seconds of invincibility
+export const FIREBALL_SPEED = 380;
+export const FIREBALL_BOUNCE = -360;
 
 // Tile legend ---------------------------------------------------------------
 export const T = {
@@ -27,7 +31,8 @@ export const T = {
   GROUND: "X",
   BRICK: "B",
   QBLOCK_COIN: "?",
-  QBLOCK_MUSH: "M",
+  QBLOCK_MUSH: "M", // mushroom if small, fire flower if big
+  QBLOCK_STAR: "S",
   QBLOCK_1UP: "1",
   USED: "U",
   HARD: "#",
@@ -41,6 +46,7 @@ export const T = {
   // spawn markers (converted to entities at load, then cleared)
   GOOMBA: "g",
   KOOPA: "k",
+  PIRANHA: "v", // sits in the pipe below this marker
 };
 
 export const SOLID = new Set([
@@ -48,6 +54,7 @@ export const SOLID = new Set([
   T.BRICK,
   T.QBLOCK_COIN,
   T.QBLOCK_MUSH,
+  T.QBLOCK_STAR,
   T.QBLOCK_1UP,
   T.USED,
   T.HARD,
@@ -58,7 +65,7 @@ export const SOLID = new Set([
   T.FLAGBASE,
 ]);
 
-export const QBLOCKS = new Set([T.QBLOCK_COIN, T.QBLOCK_MUSH, T.QBLOCK_1UP]);
+export const QBLOCKS = new Set([T.QBLOCK_COIN, T.QBLOCK_MUSH, T.QBLOCK_STAR, T.QBLOCK_1UP]);
 
 export const STATE = {
   TITLE: "title",

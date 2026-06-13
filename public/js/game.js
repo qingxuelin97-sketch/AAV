@@ -1,24 +1,28 @@
 // The Game orchestrates state, the world, entities, camera, scoring and the
 // main loop. UI/overlay concerns live in main.js and are reached via hooks.
 
-import {
-  TILE,
-  VIEW_W,
-  VIEW_H,
-  GRAVITY,
-  STOMP_BOUNCE,
-  T,
-  STATE,
-} from "./constants.js";
+import { TILE, VIEW_W, VIEW_H, GRAVITY, STOMP_BOUNCE, T, STATE } from "./constants.js";
 import { LEVELS } from "./levels.js";
 import { World } from "./world.js";
-import { Player, Goomba, Koopa, Mushroom, Particle, FloatingText } from "./entities.js";
-import { drawBackground, drawWorld, drawCastle } from "./render.js";
+import {
+  Player,
+  Goomba,
+  Koopa,
+  PiranhaPlant,
+  Mushroom,
+  FireFlower,
+  Star,
+  Fireball,
+  Particle,
+  FloatingText,
+} from "./entities.js";
+import { drawBackground, drawWorld, drawCastle, drawFirework } from "./render.js";
 import { drawCoin } from "./sprites.js";
 
 const SLIDE_SPEED = 240;
 const WALK_OFF_SPEED = 95;
 const COINS_FOR_1UP = 100;
+const FIREWORK_COLORS = ["#ff5a5f", "#ffd23f", "#5fe06b", "#5aa9ff", "#ff8af0"];
 
 class CoinPop {
   constructor(x, y) {
@@ -38,6 +42,9 @@ class CoinPop {
     drawCoin(ctx, { x: this.x + 6, y: this.y + 4, w: 20, h: 24 }, this.t * 10);
   }
 }
+
+const ENEMY = (e) => e instanceof Goomba || e instanceof Koopa;
+const ITEM = (e) => e instanceof Mushroom || e instanceof FireFlower || e instanceof Star;
 
 export class Game {
   constructor(canvas, input, audio, hooks = {}) {
@@ -62,6 +69,8 @@ export class Game {
     this.coins = 0;
     this.lives = 3;
     this.levelIndex = 0;
+    this._carryPower = "small";
+    this.elapsedMs = 0;
   }
 
   // ---- lifecycle ---------------------------------------------------------
@@ -70,7 +79,7 @@ export class Game {
     this.audio.unlock();
     this.loadLevel(0);
     this.state = STATE.PLAYING;
-    this.audio.startMusic();
+    this.audio.startTheme();
     this.emitHud();
   }
 
@@ -79,8 +88,9 @@ export class Game {
     const def = LEVELS[index];
     this.world = new World(def);
     this.timeLeft = def.time;
+    this.audio.setFast(false);
 
-    // Extract enemy spawns; coins remain as tiles.
+    // Extract spawn markers into entities; coins remain as tiles.
     this.entities = [];
     for (let row = 0; row < this.world.rows; row++) {
       for (let col = 0; col < this.world.cols; col++) {
@@ -91,13 +101,19 @@ export class Game {
         } else if (ch === T.KOOPA) {
           this.entities.push(new Koopa(col, row));
           this.world.setTile(col, row, T.EMPTY);
+        } else if (ch === T.PIRANHA) {
+          // Marker sits one tile above the pipe opening.
+          this.entities.push(new PiranhaPlant(col, row + 1));
+          this.world.setTile(col, row, T.EMPTY);
         }
       }
     }
 
+    this.fireballs = [];
     this.particles = [];
     this.floatingTexts = [];
     this.coinPops = [];
+    this.fireworks = [];
 
     // Spawn the player on the ground near the left edge.
     const startCol = 3;
@@ -109,7 +125,7 @@ export class Game {
       }
     }
     this.player = new Player(startCol * TILE, (startRow - 1) * TILE);
-    if (this._wasBig) this.player.setPower("big");
+    if (this._carryPower && this._carryPower !== "small") this.player.setPower(this._carryPower);
 
     this.cam.x = 0;
     this.clearPhase = null;
@@ -118,35 +134,36 @@ export class Game {
   }
 
   restartLevel() {
-    this._wasBig = false; // lose power on death
+    this._carryPower = "small"; // lose power on death
     this.loadLevel(this.levelIndex);
     this.state = STATE.PLAYING;
-    this.audio.startMusic();
+    this.audio.startTheme();
     this.emitHud();
   }
 
   nextLevel() {
-    this._wasBig = this.player.power === "big";
+    this._carryPower = this.player.power;
     if (this.levelIndex + 1 >= LEVELS.length) {
       this.win();
     } else {
       this.loadLevel(this.levelIndex + 1);
       this.state = STATE.PLAYING;
-      this.audio.startMusic();
+      this.audio.startTheme();
       this.emitHud();
     }
   }
 
   win() {
     this.state = STATE.WIN;
-    this.audio.stopMusic();
-    this.audio.win();
+    this.audio.stopTheme();
+    this.audio.levelClear();
     this.hooks.onWin?.(this.stats());
   }
 
   gameOver() {
     this.state = STATE.GAMEOVER;
-    this.audio.stopMusic();
+    this.audio.stopTheme();
+    this.audio.gameOver();
     this.hooks.onGameOver?.(this.stats());
   }
 
@@ -157,6 +174,10 @@ export class Game {
       level: this.levelIndex + 1,
       timeMs: Math.round(this.elapsedMs || 0),
     };
+  }
+
+  onStarEnd() {
+    this.audio.setFast(false);
   }
 
   // ---- scoring -----------------------------------------------------------
@@ -181,6 +202,16 @@ export class Game {
     this.coinPops.push(new CoinPop(x, y));
   }
 
+  spawnFireball(player) {
+    if (this.fireballs.length >= 2) return false;
+    const dir = player.facing;
+    const x = dir > 0 ? player.x + player.w : player.x - 14;
+    const y = player.y + player.h * 0.4;
+    this.fireballs.push(new Fireball(x, y, dir));
+    this.audio.fireball();
+    return true;
+  }
+
   popText(worldX, worldY, text, color) {
     this.floatingTexts.push(new FloatingText(worldX - this.cam.x, worldY, text, color));
   }
@@ -192,8 +223,10 @@ export class Game {
     this.deathTimer = 0;
     this.player.alive = false;
     this.player.controllable = false;
+    this.player.starTime = 0;
     this.player.vy = -560;
-    this.audio.stopMusic();
+    this.audio.stopTheme();
+    this.audio.setFast(false);
     this.audio.death();
     this.emitHud();
   }
@@ -202,7 +235,6 @@ export class Game {
   update(dt) {
     this.time += dt;
 
-    // Global toggles.
     if (this.input.consume("mute")) {
       const muted = this.audio.toggleMute();
       this.hooks.onMute?.(muted);
@@ -210,11 +242,11 @@ export class Game {
     if (this.input.consume("pause")) {
       if (this.state === STATE.PLAYING) {
         this.state = STATE.PAUSED;
-        this.audio.stopMusic();
+        this.audio.stopTheme();
         this.hooks.onPause?.(true);
       } else if (this.state === STATE.PAUSED) {
         this.state = STATE.PLAYING;
-        this.audio.startMusic();
+        this.audio.startTheme(this.player.starTime > 0);
         this.hooks.onPause?.(false);
       }
     }
@@ -237,7 +269,6 @@ export class Game {
   updatePlaying(dt) {
     this.elapsedMs = (this.elapsedMs || 0) + dt * 1000;
 
-    // Countdown (runs ~2x real time, classic feel).
     this.timeLeft -= dt * 2;
     if (this.timeLeft <= 0) {
       this.timeLeft = 0;
@@ -249,7 +280,6 @@ export class Game {
     this.player.update(dt, this.input, world, this);
     world.update(dt);
 
-    // Collect coin tiles overlapping the player.
     this.collectCoinTiles();
 
     // Update entities within an activation window around the camera.
@@ -259,11 +289,16 @@ export class Game {
       if (e.dead) continue;
       if (e.x + e.w < lo || e.x > hi) continue;
       if (e.contactCooldown > 0) e.contactCooldown -= dt;
-      e.update(dt, world);
+      if (e.kind === "piranha") e.update(dt, world, this.player);
+      else e.update(dt, world);
     }
+
+    for (const fb of this.fireballs) fb.update(dt, world);
 
     this.handleEnemyCollisions();
     this.handleShellCollisions();
+    this.handleFireballCollisions();
+    this.handlePiranhaCollisions();
     this.handleItemCollisions();
 
     for (const p of this.particles) p.update(dt);
@@ -271,16 +306,14 @@ export class Game {
     for (const c of this.coinPops) c.update(dt);
 
     this.entities = this.entities.filter((e) => !e.dead);
+    this.fireballs = this.fireballs.filter((f) => !f.dead);
     this.particles = this.particles.filter((p) => !p.dead);
     this.floatingTexts = this.floatingTexts.filter((f) => !f.dead);
     this.coinPops = this.coinPops.filter((c) => !c.dead);
 
     this.updateCamera();
 
-    // Reached the flagpole?
-    if (this.player.cx >= world.flagCol * TILE) {
-      this.startFlag();
-    }
+    if (this.player.cx >= world.flagCol * TILE) this.startFlag();
 
     this.emitHud();
   }
@@ -304,24 +337,31 @@ export class Game {
   handleEnemyCollisions() {
     const p = this.player;
     if (!p.alive) return;
+    const star = p.starTime > 0;
     for (const e of this.entities) {
-      if (e.dead || !(e instanceof Goomba || e instanceof Koopa)) continue;
+      if (e.dead || !ENEMY(e)) continue;
+      if (e.state === "squashed" || e.state === "flipped") continue;
       if (!p.intersects(e)) continue;
 
+      // Star power: blast through everything.
+      if (star) {
+        e.flip(p.facing, this);
+        this.addScore(200);
+        this.popText(e.cx, e.y, "200", "#ffd23f");
+        continue;
+      }
+
       const pBottom = p.y + p.h;
-      const falling = p.vy > 0;
-      const stomp = falling && pBottom - e.y < e.h * 0.7;
+      const stomp = p.vy > 0 && pBottom - e.y < e.h * 0.7;
 
       if (e instanceof Goomba) {
-        if (e.state === "walk") {
-          if (stomp) {
-            e.squash(this);
-            p.vy = STOMP_BOUNCE;
-            this.addScore(100);
-            this.popText(e.cx, e.y, "100");
-          } else {
-            p.damage(this);
-          }
+        if (stomp) {
+          e.squash(this);
+          p.vy = STOMP_BOUNCE;
+          this.addScore(100);
+          this.popText(e.cx, e.y, "100");
+        } else {
+          p.damage(this);
         }
       } else if (e instanceof Koopa) {
         if (e.state === "walk") {
@@ -334,13 +374,12 @@ export class Game {
             p.damage(this);
           }
         } else if (e.state === "shell") {
-          // Kick the idle shell away from the player.
           const dir = p.cx < e.cx ? 1 : -1;
           e.kick(dir, this);
-          e.contactCooldown = 0.18;
+          e.contactCooldown = 0.2;
           if (stomp) p.vy = STOMP_BOUNCE;
-          this.addScore(100);
-          this.popText(e.cx, e.y, "100");
+          this.addScore(400);
+          this.popText(e.cx, e.y, "400", "#ffd23f");
         } else if (e.state === "spin") {
           if (stomp) {
             e.stopShell();
@@ -353,20 +392,58 @@ export class Game {
     }
   }
 
-  // A spinning shell mows down other enemies.
   handleShellCollisions() {
     for (const shell of this.entities) {
       if (shell.dead || !(shell instanceof Koopa) || shell.state !== "spin") continue;
       for (const e of this.entities) {
-        if (e === shell || e.dead) continue;
-        if (!(e instanceof Goomba || e instanceof Koopa)) continue;
+        if (e === shell || e.dead || !ENEMY(e)) continue;
         if (e.state === "squashed" || e.state === "flipped") continue;
         if (shell.intersects(e)) {
-          const dir = shell.vx > 0 ? 1 : -1;
-          e.flip(dir, this);
+          e.flip(shell.vx > 0 ? 1 : -1, this);
           this.addScore(200);
           this.popText(e.cx, e.y, "200");
         }
+      }
+    }
+  }
+
+  handleFireballCollisions() {
+    for (const fb of this.fireballs) {
+      if (fb.dead) continue;
+      for (const e of this.entities) {
+        if (e.dead) continue;
+        if (ENEMY(e) && e.state !== "squashed" && e.state !== "flipped" && fb.intersects(e)) {
+          e.flip(fb.vx > 0 ? 1 : -1, this);
+          fb.dead = true;
+          this.addScore(100);
+          this.popText(e.cx, e.y, "100");
+          this.spawnBurst(fb.cx, fb.cy, "#ff8a3a");
+          break;
+        }
+        if (e.kind === "piranha" && e.active && fb.intersects(e)) {
+          e.dead = true;
+          fb.dead = true;
+          this.addScore(200);
+          this.popText(e.cx, e.y, "200", "#ffd23f");
+          this.spawnBurst(fb.cx, fb.cy, "#ff8a3a");
+          break;
+        }
+      }
+    }
+  }
+
+  handlePiranhaCollisions() {
+    const p = this.player;
+    if (!p.alive) return;
+    for (const e of this.entities) {
+      if (e.dead || e.kind !== "piranha" || !e.active) continue;
+      if (!p.intersects(e)) continue;
+      if (p.starTime > 0) {
+        e.dead = true;
+        this.addScore(200);
+        this.popText(e.cx, e.y, "200", "#ffd23f");
+      } else {
+        p.damage(this);
       }
     }
   }
@@ -375,21 +452,39 @@ export class Game {
     const p = this.player;
     if (!p.alive) return;
     for (const e of this.entities) {
-      if (e.dead || !(e instanceof Mushroom)) continue;
+      if (e.dead || !ITEM(e)) continue;
       if (!p.intersects(e)) continue;
       e.dead = true;
-      if (e.oneUp) {
+      if (e instanceof Mushroom && e.oneUp) {
         this.lives++;
         this.audio.oneUp();
         this.popText(e.cx, e.y, "1UP", "#5fe06b");
-      } else {
-        if (p.power === "small") {
-          p.setPower("big");
-          this.audio.powerup();
-        }
+      } else if (e instanceof Mushroom) {
+        if (p.power === "small") p.setPower("big");
+        this.audio.powerup();
         this.addScore(1000);
         this.popText(e.cx, e.y, "1000", "#fff");
+      } else if (e instanceof FireFlower) {
+        p.setPower("fire");
+        this.audio.powerup();
+        this.addScore(1000);
+        this.popText(e.cx, e.y, "1000", "#ff8a3a");
+      } else if (e instanceof Star) {
+        p.giveStar();
+        this.audio.setFast(true);
+        this.audio.powerup();
+        this.addScore(1000);
+        this.popText(e.cx, e.y, "STAR!", "#ffd23f");
       }
+    }
+  }
+
+  spawnBurst(x, y, color) {
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      this.particles.push(
+        new Particle(x, y, Math.cos(a) * 120, Math.sin(a) * 120, color, 5, 0.4, 0.2)
+      );
     }
   }
 
@@ -403,18 +498,17 @@ export class Game {
   updateDying(dt) {
     this.deathTimer += dt;
     const p = this.player;
-    p.vy += GRAVITY * dt;
-    p.y += p.vy * dt;
+    if (this.deathTimer > 0.4) {
+      p.vy += GRAVITY * dt;
+      p.y += p.vy * dt;
+    }
     for (const f of this.floatingTexts) f.update(dt);
     this.floatingTexts = this.floatingTexts.filter((f) => !f.dead);
 
-    if (this.deathTimer > 2.0) {
+    if (this.deathTimer > 2.4) {
       this.lives--;
-      if (this.lives < 0) {
-        this.gameOver();
-      } else {
-        this.restartLevel();
-      }
+      if (this.lives < 0) this.gameOver();
+      else this.restartLevel();
     }
   }
 
@@ -429,10 +523,10 @@ export class Game {
     p.x = this.world.flagCol * TILE - p.w + 4;
     this.clearPhase = "slide";
     this.clearTimer = 0;
-    this.audio.stopMusic();
-    this.audio.flag();
+    this.audio.stopTheme();
+    this.audio.setFast(false);
+    this.audio.flagpole();
 
-    // Flag score by how high up the pole Mario grabbed it.
     const poleTop = 3 * TILE;
     const grabFrac = 1 - Math.min(1, Math.max(0, (p.y - poleTop) / (this.world.pixelHeight - poleTop)));
     const bonus = [100, 400, 800, 2000, 5000][Math.min(4, Math.floor(grabFrac * 5))];
@@ -447,7 +541,7 @@ export class Game {
     if (this.clearPhase === "slide") {
       p.y = Math.min(groundY, p.y + SLIDE_SPEED * dt);
       this.flagClothY = Math.min((this.world.rows - 3) * TILE, p.y);
-      this.player.walkFrame = 0;
+      p.walkFrame = 0;
       if (p.y >= groundY) {
         this.clearPhase = "pause";
         this.clearTimer = 0;
@@ -461,15 +555,34 @@ export class Game {
       }
     } else if (this.clearPhase === "walk") {
       p.x += WALK_OFF_SPEED * dt;
-      this.player.walkTimer += WALK_OFF_SPEED * dt;
-      this.player.walkFrame = Math.floor(this.player.walkTimer / 18) % 2 === 0 ? 1 : 2;
+      p.walkTimer += WALK_OFF_SPEED * dt;
+      p.walkFrame = Math.floor(p.walkTimer / 18) % 2 === 0 ? 1 : 2;
       this.updateCamera();
       if (p.x > (this.world.flagCol + 6) * TILE) {
-        // Tally remaining time into score, then advance.
         const timeBonus = Math.floor(this.timeLeft) * 50;
         this.addScore(timeBonus);
-        this.nextLevel();
+        this.popText(p.cx + 40, p.y - 10, "TIME×50 = " + timeBonus, "#fff");
+        this.audio.levelClear();
+        this.clearPhase = "celebrate";
+        this.clearTimer = 0;
+        this._fireworkTimer = 0;
       }
+    } else if (this.clearPhase === "celebrate") {
+      this.clearTimer += dt;
+      this._fireworkTimer -= dt;
+      if (this._fireworkTimer <= 0) {
+        this._fireworkTimer = 0.35;
+        this.fireworks.push({
+          x: 120 + Math.random() * (VIEW_W - 240),
+          y: 60 + Math.random() * 160,
+          t: 0,
+          color: FIREWORK_COLORS[(Math.random() * FIREWORK_COLORS.length) | 0],
+        });
+        this.audio.firework();
+      }
+      for (const fw of this.fireworks) fw.t += dt * 1.2;
+      this.fireworks = this.fireworks.filter((fw) => fw.t < 1);
+      if (this.clearTimer > 2.6) this.nextLevel();
     }
     this.emitHud();
   }
@@ -480,7 +593,6 @@ export class Game {
     ctx.clearRect(0, 0, VIEW_W, VIEW_H);
 
     if (this.state === STATE.TITLE) {
-      // A calm parallax scene behind the title overlay.
       drawBackground(ctx, this.cam, LEVELS[0]);
       return;
     }
@@ -488,28 +600,29 @@ export class Game {
     const def = LEVELS[this.levelIndex];
     drawBackground(ctx, this.cam, def);
 
-    // Decorative castle just past the flag.
     const castleX = (this.world.flagCol + 8) * TILE - this.cam.x;
     if (castleX < VIEW_W + 200 && castleX > -300) {
       drawCastle(ctx, castleX, (this.world.rows - 2) * TILE);
     }
 
     drawWorld(ctx, this.world, this.cam, this.time);
-
-    // Flag cloth on the pole.
     this.drawFlagCloth(ctx);
 
-    // Entities.
     ctx.save();
     ctx.translate(-this.cam.x, 0);
     for (const e of this.entities) e.draw(ctx);
+    for (const fb of this.fireballs) fb.draw(ctx);
     for (const c of this.coinPops) c.draw(ctx);
     for (const p of this.particles) p.draw(ctx);
     if (this.player) this.player.draw(ctx);
     ctx.restore();
 
-    // Floating texts are already in screen space.
     for (const f of this.floatingTexts) f.draw(ctx);
+
+    // Fireworks are drawn in screen space during the celebration.
+    if (this.fireworks) {
+      for (const fw of this.fireworks) drawFirework(ctx, fw.x, fw.y, fw.t, fw.color);
+    }
 
     if (this.state === STATE.PAUSED) {
       ctx.fillStyle = "rgba(0,0,0,0.35)";
@@ -538,6 +651,8 @@ export class Game {
       world: LEVELS[this.levelIndex]?.name ?? "1-1",
       time: Math.ceil(this.timeLeft ?? 0),
       lives: Math.max(0, this.lives),
+      power: this.player?.power ?? "small",
+      star: (this.player?.starTime ?? 0) > 0,
     });
   }
 
@@ -548,7 +663,7 @@ export class Game {
     const tick = (now) => {
       let dt = (now - this._last) / 1000;
       this._last = now;
-      if (dt > 0.05) dt = 0.05; // clamp to avoid tunneling after stalls
+      if (dt > 0.05) dt = 0.05;
       this.update(dt);
       this.render();
       this.input.flush();

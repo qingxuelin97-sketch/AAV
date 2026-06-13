@@ -11,20 +11,25 @@ the Web Audio API, so the whole thing is self-contained.
 ## Features
 
 ### Gameplay
+- **The real Super Mario Bros. overworld theme** 🎵 — the iconic Koji Kondo
+  melody, bassline and percussion, sequenced live with the Web Audio API
+  (speeds up during star power, with full level-clear / game-over / death
+  jingles). No audio files.
 - **Snappy platforming physics** — acceleration/friction, run vs. walk speeds,
-  variable jump height, plus *coyote time* and *jump buffering* for a forgiving,
-  modern feel.
-- **3 hand-designed worlds** (1-1, 1-2, 1-3) of increasing difficulty with day,
-  dusk and night themes, each ending in a flagpole + castle.
-- **Power-ups** — Super Mushroom (grow to Big Mario and survive a hit),
-  1-Up Mushroom (extra life).
-- **Enemies** — Goombas (stompable) and Koopa Troopas with full shell mechanics:
-  stomp to a shell, kick it, and watch a spinning shell mow down other enemies
-  for combo points.
-- **Interactive blocks** — `?` blocks (coins / mushrooms / 1-ups), breakable
-  bricks (only when big) with flying debris, and animated coins.
-- **Scoring** — stomps, coins, bricks, flag-height bonus and a remaining-time
-  bonus. Every 100 coins grants a 1-Up.
+  variable jump height, skid turns, faster run-jumps, plus *coyote time* and
+  *jump buffering* for a forgiving, modern feel.
+- **4 hand-designed worlds** (1-1 … 1-4) of increasing difficulty with day,
+  dusk and night themes, each ending in a flagpole, fireworks and a castle.
+- **Power-ups** — Super Mushroom (grow), **Fire Flower** (throw bouncing
+  fireballs with `X`), **Super Star** (rainbow invincibility that blasts
+  through enemies), and 1-Up Mushroom.
+- **Enemies** — Goombas, Koopa Troopas with full shell mechanics (stomp → kick
+  → spinning shell combos), and **Piranha Plants** that rise from pipes and duck
+  when you stand near.
+- **Interactive blocks** — `?` blocks (coins / mushroom→fire / star / 1-up),
+  breakable bricks (when big/fire) with flying debris, animated coins.
+- **Scoring** — stomps, shell kicks, fireball kills, coins, bricks, flag-height
+  bonus and a remaining-time tally. Every 100 coins grants a 1-Up.
 - **Lives, timer, pause, mute**, pit/time-out deaths, level transitions and a
   win screen after clearing all worlds.
 
@@ -44,7 +49,7 @@ the Web Audio API, so the whole thing is self-contained.
 | --- | --- |
 | Move | `←` `→` / `A` `D` |
 | Jump | `Z` / `Space` / `↑` / `W` |
-| Run  | `X` / `Shift` |
+| Run / Throw fireball | `X` / `Shift` |
 | Pause | `P` |
 | Mute | `M` |
 
