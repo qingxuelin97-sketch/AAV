@@ -1,0 +1,29 @@
+name: Deploy game to GitHub Pages
+
+# Every time the game code is updated on this branch, rebuild and republish the
+# playable site. You can also trigger it by hand from the Actions tab.
+on:
+  push:
+    branches:
+      - claude/mario-game-fullstack-gtur1x
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      # Publishes the contents of public/ to a "gh-pages" branch, which GitHub
+      # Pages then serves as a static website. The leaderboard automatically
+      # falls back to in-browser storage when there's no Node backend.
+      - name: Publish to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          publish_branch: gh-pages
