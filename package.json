@@ -1,0 +1,27 @@
+{
+  "name": "super-mario-fullstack",
+  "version": "1.0.0",
+  "description": "A full-stack Super Mario-style platformer game with a Node/Express backend leaderboard.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "mario",
+    "game",
+    "platformer",
+    "canvas",
+    "express"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
