@@ -11,11 +11,14 @@ the Web Audio API, so the whole thing is self-contained.
 ## Features
 
 ### Gameplay
-- **Two live-sequenced soundtracks** 🎵 — the iconic Super Mario Bros.
-  overworld theme (melody + bass + percussion, sped up during star power) and a
-  dark, driving **boss theme** for the Bowser fight, plus full
-  level-clear / game-over / death / flagpole / boss-defeat jingles. All
+- **Four live-sequenced soundtracks** 🎵 — the iconic overworld theme (sped up
+  during star power), a gentle **snow** theme, a moody **night/underground**
+  theme, and a dark, driving **boss theme**, each chosen by the level — plus
+  full level-clear / game-over / death / flagpole / boss-defeat jingles. All
   synthesized with the Web Audio API — no audio files.
+- **Game feel & polish** — squash-and-stretch, landing/running dust, a
+  smooth look-ahead camera, screen shake on big impacts, and soft ground
+  shadows, on top of redrawn, shaded character art.
 - **Snappy platforming physics** — acceleration/friction, run vs. walk speeds,
   variable jump height, skid turns, faster run-jumps, plus *coyote time* and
   *jump buffering* for a forgiving, modern feel.

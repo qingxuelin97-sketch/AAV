@@ -72,6 +72,7 @@ export class World {
         this.setTile(col, row, T.EMPTY);
         game.audio.break_();
         game.addScore(50);
+        game.addShake?.(3);
         this._spawnDebris(col, row, game);
       } else {
         this._animateBump(col, row);

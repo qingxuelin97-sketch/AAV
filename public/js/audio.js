@@ -54,9 +54,43 @@ const BOSS_BASS = [
   "A1","A1","A1","A1", "A1","A1","A1","A1", "D2","D2","D2","D2", "D2","D2","D2","D2",
 ];
 
+// ---- Snow theme — gentle, lilting, bright major key -----------------------
+// prettier-ignore
+const SNOW_MELODY = [
+  "G4","_","C5","_", "E5","_","D5","C5", "D5","_","E5","_", "C5","_","_","_",
+  "F5","_","E5","D5", "_","C5","D5","_", "E5","_","D5","_", "G4","_","_","_",
+  "A4","_","C5","_", "F5","_","E5","D5", "C5","_","D5","E5", "D5","_","_","_",
+  "G4","_","B4","_", "D5","_","C5","B4", "C5","_","_","_", "_","_","_","_",
+];
+// prettier-ignore
+const SNOW_BASS = [
+  "C3","_","_","_", "G2","_","_","_", "C3","_","_","_", "C3","_","_","_",
+  "F2","_","_","_", "C3","_","_","_", "G2","_","_","_", "G2","_","_","_",
+  "F2","_","_","_", "F2","_","_","_", "C3","_","_","_", "G2","_","_","_",
+  "G2","_","_","_", "G2","_","_","_", "C3","_","_","_", "C3","_","_","_",
+];
+
+// ---- Night / underground theme — sparse, mysterious minor -----------------
+// prettier-ignore
+const NIGHT_MELODY = [
+  "A4","_","_","E4", "_","A4","_","C5", "_","B4","_","A4", "_","_","_","_",
+  "E4","_","_","G4", "_","A4","_","C5", "_","D5","_","C5", "B4","_","_","_",
+  "A4","_","_","E4", "_","A4","_","C5", "_","E5","_","D5", "_","C5","_","B4",
+  "A4","_","G4","_", "E4","_","_","_", "A4","_","_","_", "_","_","_","_",
+];
+// prettier-ignore
+const NIGHT_BASS = [
+  "A2","_","A2","_", "A2","_","A2","_", "E2","_","E2","_", "E2","_","E2","_",
+  "C3","_","C3","_", "C3","_","C3","_", "G2","_","G2","_", "G2","_","G2","_",
+  "A2","_","A2","_", "A2","_","A2","_", "F2","_","F2","_", "E2","_","E2","_",
+  "A2","_","A2","_", "E2","_","E2","_", "A2","_","A2","_", "A2","_","A2","_",
+];
+
 const TRACKS = {
   overworld: { melody: THEME_MELODY, bass: THEME_BASS, step: 0.108, type: "square", boss: false },
   boss: { melody: BOSS_MELODY, bass: BOSS_BASS, step: 0.1, type: "sawtooth", boss: true },
+  snow: { melody: SNOW_MELODY, bass: SNOW_BASS, step: 0.14, type: "triangle", boss: false },
+  night: { melody: NIGHT_MELODY, bass: NIGHT_BASS, step: 0.125, type: "square", boss: false },
 };
 
 export class AudioEngine {

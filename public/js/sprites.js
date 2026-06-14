@@ -29,6 +29,19 @@ function fr(ctx, box, fx, fy, fw, fh, color, flip) {
   );
 }
 
+// A soft elliptical ground shadow for depth.
+export function drawShadow(ctx, cx, footY, w) {
+  ctx.save();
+  ctx.globalAlpha = 0.22;
+  ctx.fillStyle = "#000";
+  ctx.translate(cx, footY - 2);
+  ctx.scale(1, 0.32);
+  ctx.beginPath();
+  ctx.arc(0, 0, Math.max(8, w * 0.55), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 // --------------------------------------------------------------------------
 // Mario (small / big / fire forms)
 // --------------------------------------------------------------------------
@@ -134,17 +147,26 @@ export function drawGoomba(ctx, box, opts = {}) {
     fr(ctx, box, 0.6, 0.82, 0.12, 0.06, "#3a2410");
     return;
   }
-  fr(ctx, box, 0.12, 0.10, 0.76, 0.45, "#9c5a2b");
-  fr(ctx, box, 0.05, 0.25, 0.9, 0.35, "#9c5a2b");
-  fr(ctx, box, 0.05, 0.20, 0.9, 0.06, "#7a431c");
-  fr(ctx, box, 0.2, 0.45, 0.6, 0.25, "#d9a066");
+  // Mushroom-shaped cap with top-down shading.
+  fr(ctx, box, 0.08, 0.08, 0.84, 0.5, "#9c5a2b");
+  fr(ctx, box, 0.03, 0.24, 0.94, 0.34, "#9c5a2b");
+  fr(ctx, box, 0.08, 0.08, 0.84, 0.09, "#b46c38"); // top highlight
+  fr(ctx, box, 0.16, 0.13, 0.34, 0.05, "#c98049"); // gloss
+  fr(ctx, box, 0.03, 0.5, 0.94, 0.1, "#7a431c"); // bottom shade
+  // Face
+  fr(ctx, box, 0.2, 0.46, 0.6, 0.24, "#e3ac6c");
+  // Angry brows
+  fr(ctx, box, 0.22, 0.3, 0.2, 0.06, PAL.black);
+  fr(ctx, box, 0.58, 0.3, 0.2, 0.06, PAL.black);
+  // Eyes (+ a little shine)
   const ex = walkFrame ? 0.02 : 0;
-  fr(ctx, box, 0.26 + ex, 0.34, 0.12, 0.16, PAL.white);
-  fr(ctx, box, 0.62 - ex, 0.34, 0.12, 0.16, PAL.white);
-  fr(ctx, box, 0.32 + ex, 0.38, 0.05, 0.1, PAL.black);
-  fr(ctx, box, 0.63 - ex, 0.38, 0.05, 0.1, PAL.black);
-  fr(ctx, box, 0.24, 0.30, 0.18, 0.05, PAL.black);
-  fr(ctx, box, 0.58, 0.30, 0.18, 0.05, PAL.black);
+  fr(ctx, box, 0.27 + ex, 0.34, 0.13, 0.17, PAL.white);
+  fr(ctx, box, 0.6 - ex, 0.34, 0.13, 0.17, PAL.white);
+  fr(ctx, box, 0.33 + ex, 0.39, 0.06, 0.1, PAL.black);
+  fr(ctx, box, 0.63 - ex, 0.39, 0.06, 0.1, PAL.black);
+  fr(ctx, box, 0.34 + ex, 0.4, 0.02, 0.03, PAL.white);
+  fr(ctx, box, 0.64 - ex, 0.4, 0.02, 0.03, PAL.white);
+  // Feet
   if (walkFrame) {
     fr(ctx, box, 0.1, 0.85, 0.3, 0.15, "#3a2410");
     fr(ctx, box, 0.6, 0.85, 0.3, 0.15, "#3a2410");
@@ -176,17 +198,24 @@ export function drawKoopa(ctx, box, opts = {}) {
     return;
   }
 
-  fr(ctx, box, 0.18, 0.28, 0.64, 0.5, "#3aa14b", flip);
-  fr(ctx, box, 0.24, 0.34, 0.5, 0.32, "#8fe07a", flip);
-  fr(ctx, box, 0.62, 0.12, 0.28, 0.26, "#f5d000", flip);
-  fr(ctx, box, 0.80, 0.20, 0.07, 0.07, PAL.black, flip);
-  fr(ctx, box, 0.6, 0.30, 0.30, 0.06, "#d9a066", flip);
+  // Shell with layered shading + belly
+  fr(ctx, box, 0.16, 0.26, 0.66, 0.52, "#2c7a39", flip);
+  fr(ctx, box, 0.2, 0.3, 0.56, 0.42, "#3aa14b", flip);
+  fr(ctx, box, 0.26, 0.36, 0.42, 0.26, "#8fe07a", flip); // shell highlight
+  fr(ctx, box, 0.16, 0.7, 0.66, 0.09, "#1f5e29", flip); // bottom shade
+  fr(ctx, box, 0.5, 0.4, 0.2, 0.34, "#f0d68a", flip); // belly
+  // Head
+  fr(ctx, box, 0.6, 0.1, 0.3, 0.28, "#f5d000", flip);
+  fr(ctx, box, 0.6, 0.1, 0.3, 0.07, "#ffe24a", flip); // top light
+  fr(ctx, box, 0.82, 0.19, 0.08, 0.08, PAL.white, flip); // eye white
+  fr(ctx, box, 0.84, 0.2, 0.05, 0.06, PAL.black, flip);
+  fr(ctx, box, 0.6, 0.3, 0.3, 0.06, "#d9a066", flip); // beak
   if (walkFrame) {
-    fr(ctx, box, 0.2, 0.82, 0.22, 0.18, "#f5d000", flip);
-    fr(ctx, box, 0.55, 0.82, 0.22, 0.18, "#f5d000", flip);
+    fr(ctx, box, 0.2, 0.82, 0.22, 0.18, "#e0b800", flip);
+    fr(ctx, box, 0.55, 0.82, 0.22, 0.18, "#e0b800", flip);
   } else {
-    fr(ctx, box, 0.28, 0.82, 0.22, 0.18, "#f5d000", flip);
-    fr(ctx, box, 0.62, 0.82, 0.22, 0.18, "#f5d000", flip);
+    fr(ctx, box, 0.28, 0.82, 0.22, 0.18, "#e0b800", flip);
+    fr(ctx, box, 0.62, 0.82, 0.22, 0.18, "#e0b800", flip);
   }
 }
 

@@ -21,7 +21,7 @@ import {
   FloatingText,
 } from "./entities.js";
 import { drawBackground, drawWorld, drawCastle, drawFirework } from "./render.js";
-import { drawCoin } from "./sprites.js";
+import { drawCoin, drawShadow } from "./sprites.js";
 
 const SLIDE_SPEED = 240;
 const WALK_OFF_SPEED = 95;
@@ -46,6 +46,9 @@ class CoinPop {
     drawCoin(ctx, { x: this.x + 6, y: this.y + 4, w: 20, h: 24 }, this.t * 10);
   }
 }
+
+// Which looping theme suits each background.
+const MUSIC_FOR_BG = { day: "overworld", dusk: "overworld", night: "night", snow: "snow", castle: "boss" };
 
 const BOSS_PRESETS = {
   mini: { variant: "mini", name: "锤子龟王", tint: "#4aa3ff", hp: 4, phases: 1, speed: 95 },
@@ -128,7 +131,7 @@ export class Game {
     const def = LEVELS[index];
     this.world = new World(def);
     this.timeLeft = def.time;
-    this.themeName = def.boss ? "boss" : "overworld";
+    this.themeName = def.boss ? "boss" : MUSIC_FOR_BG[def.bg] || "overworld";
     this.boss = null;
     this.bossDefeated = false;
     this.audio.setFast(false);
@@ -314,6 +317,8 @@ export class Game {
     this.bossFireballs.push(new BossFireball(boss.x, y, -330, 0, "shock"));
     this.bossFireballs.push(new BossFireball(boss.x + boss.w - 22, y, 330, 0, "shock"));
     this.audio.bossHit();
+    this.addShake(7);
+    this.spawnDust(boss.cx, boss.y + boss.h, 10);
   }
 
   popText(worldX, worldY, text, color) {
@@ -428,7 +433,8 @@ export class Game {
     this.floatingTexts = this.floatingTexts.filter((f) => !f.dead);
     this.coinPops = this.coinPops.filter((c) => !c.dead);
 
-    this.updateCamera();
+    if (this.shake > 0) this.shake = Math.max(0, this.shake - dt * 36);
+    this.updateCamera(dt);
 
     if (this.player.cx >= world.flagCol * TILE) this.startFlag();
 
@@ -706,10 +712,36 @@ export class Game {
     }
   }
 
-  updateCamera() {
-    const target = this.player.cx - VIEW_W * 0.42;
+  // Soft dust puffs for landings and running (game-feel feedback).
+  spawnDust(x, y, n = 5) {
+    for (let i = 0; i < n; i++) {
+      this.particles.push(
+        new Particle(
+          x + (Math.random() * 10 - 5),
+          y - 3,
+          Math.random() * 90 - 45,
+          -Math.random() * 70,
+          "rgba(225,222,210,0.9)",
+          3 + Math.random() * 3,
+          0.4,
+          0.12
+        )
+      );
+    }
+  }
+
+  addShake(mag) {
+    this.shake = Math.min(9, Math.max(this.shake || 0, mag));
+  }
+
+  // Smoothly follow the player with a little look-ahead in the direction of travel.
+  updateCamera(dt = 1 / 60) {
+    const look = this.player.facing * 28 + this.player.vx * 0.12;
     const max = this.world.pixelWidth - VIEW_W;
-    this.cam.x = Math.max(0, Math.min(max, target));
+    const target = Math.max(0, Math.min(max, this.player.cx - VIEW_W * 0.42 + look));
+    const k = Math.min(1, dt * 9);
+    this.cam.x += (target - this.cam.x) * k;
+    this.cam.x = Math.max(0, Math.min(max, this.cam.x));
   }
 
   // ---- death animation ---------------------------------------------------
@@ -775,7 +807,7 @@ export class Game {
       p.x += WALK_OFF_SPEED * dt;
       p.walkTimer += WALK_OFF_SPEED * dt;
       p.walkFrame = Math.floor(p.walkTimer / 18) % 2 === 0 ? 1 : 2;
-      this.updateCamera();
+      this.updateCamera(dt);
       if (p.x > (this.world.flagCol + 6) * TILE) {
         const timeBonus = Math.floor(this.timeLeft) * 50;
         this.addScore(timeBonus);
@@ -816,6 +848,14 @@ export class Game {
     }
 
     const def = LEVELS[this.levelIndex];
+
+    // Screen shake: offset the whole gameplay layer (HUD stays put).
+    const sh = this.shake || 0;
+    const ox = sh ? (Math.random() * 2 - 1) * sh : 0;
+    const oy = sh ? (Math.random() * 2 - 1) * sh : 0;
+    ctx.save();
+    ctx.translate(Math.round(ox), Math.round(oy));
+
     drawBackground(ctx, this.cam, def, this.time);
 
     const castleX = (this.world.flagCol + 8) * TILE - this.cam.x;
@@ -828,6 +868,13 @@ export class Game {
 
     ctx.save();
     ctx.translate(-this.cam.x, 0);
+    // Ground shadows under grounded characters for depth.
+    for (const e of this.entities) {
+      if (e.onGround && (ENEMY(e) || e.kind === "boss")) drawShadow(ctx, e.cx, e.y + e.h, e.w);
+    }
+    if (this.player && this.player.onGround && this.player.alive) {
+      drawShadow(ctx, this.player.cx, this.player.y + this.player.h, this.player.w);
+    }
     for (const e of this.entities) e.draw(ctx);
     for (const fb of this.fireballs) fb.draw(ctx);
     for (const bf of this.bossFireballs) bf.draw(ctx);
@@ -842,6 +889,8 @@ export class Game {
     if (this.fireworks) {
       for (const fw of this.fireworks) drawFirework(ctx, fw.x, fw.y, fw.t, fw.color);
     }
+
+    ctx.restore(); // end shake layer
 
     if (this.boss && this.boss.state === "alive") this.drawBossBar(ctx);
     if (this.toast) this.drawToast(ctx);
