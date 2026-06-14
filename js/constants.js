@@ -24,6 +24,8 @@ export const STOMP_BOUNCE = -440;
 export const STAR_TIME = 10; // seconds of invincibility
 export const FIREBALL_SPEED = 380;
 export const FIREBALL_BOUNCE = -360;
+export const FREEZE_TIME = 5; // seconds an enemy stays frozen
+export const BOSS_HP = 5;
 
 // Tile legend ---------------------------------------------------------------
 export const T = {
@@ -32,6 +34,7 @@ export const T = {
   BRICK: "B",
   QBLOCK_COIN: "?",
   QBLOCK_MUSH: "M", // mushroom if small, fire flower if big
+  QBLOCK_ICE: "I", // mushroom if small, ice flower if big
   QBLOCK_STAR: "S",
   QBLOCK_1UP: "1",
   USED: "U",
@@ -47,6 +50,8 @@ export const T = {
   GOOMBA: "g",
   KOOPA: "k",
   PIRANHA: "v", // sits in the pipe below this marker
+  BOSS: "W", // Bowser
+  AXE: "A", // touch to defeat the boss (classic bridge axe)
 };
 
 export const SOLID = new Set([
@@ -54,6 +59,7 @@ export const SOLID = new Set([
   T.BRICK,
   T.QBLOCK_COIN,
   T.QBLOCK_MUSH,
+  T.QBLOCK_ICE,
   T.QBLOCK_STAR,
   T.QBLOCK_1UP,
   T.USED,
@@ -65,7 +71,13 @@ export const SOLID = new Set([
   T.FLAGBASE,
 ]);
 
-export const QBLOCKS = new Set([T.QBLOCK_COIN, T.QBLOCK_MUSH, T.QBLOCK_STAR, T.QBLOCK_1UP]);
+export const QBLOCKS = new Set([
+  T.QBLOCK_COIN,
+  T.QBLOCK_MUSH,
+  T.QBLOCK_ICE,
+  T.QBLOCK_STAR,
+  T.QBLOCK_1UP,
+]);
 
 export const STATE = {
   TITLE: "title",

@@ -512,4 +512,164 @@ function world4() {
   };
 }
 
-export const LEVELS = [world1(), world2(), world3(), world4()];
+// ---------------------------------------------------------------------------
+// World 2-1 — the snow plains: a fresh white background and Ice Flowers.
+// ---------------------------------------------------------------------------
+function world5() {
+  const w = 188;
+  const b = new LevelBuilder(w);
+  b.ground(0, w - 1);
+
+  const gaps = [
+    [26, 29],
+    [48, 52],
+    [74, 78],
+    [104, 108],
+    [134, 139],
+    [160, 164],
+  ];
+  for (const [a, c] of gaps) {
+    for (let r = b.height - 2; r < b.height; r++) b.hline(r, a, c, T.EMPTY);
+  }
+
+  // Intro: a mushroom then an Ice Flower so you arrive frosty.
+  b.set(8, 9, T.QBLOCK_MUSH);
+  b.set(11, 9, T.QBLOCK_ICE);
+  b.coins(8, 13, 18);
+  b.set(16, 12, T.GOOMBA);
+
+  // Brick island over the first gap.
+  b.hline(8, 25, 30, T.BRICK);
+  b.set(27, 5, T.QBLOCK_ICE);
+  b.coins(6, 26, 29);
+
+  // Pipes (one with a Piranha) + koopas.
+  b.pipe(36, 10, 3, true);
+  b.set(40, 12, T.KOOPA);
+  b.pipe(44, 11, 2);
+
+  // Floating platforms across the wide gap.
+  b.hline(9, 47, 48, T.HARD);
+  b.hline(7, 51, 52, T.HARD);
+  b.coins(5, 51, 52);
+  b.set(58, 12, T.GOOMBA);
+  b.set(60, 12, T.GOOMBA);
+
+  // Ceiling brick run with a star.
+  b.hline(5, 64, 72, T.BRICK);
+  b.set(68, 5, T.QBLOCK_STAR);
+  b.coins(11, 64, 72, 2);
+
+  // Stepping stones over the gap.
+  b.hline(9, 75, 77, T.HARD);
+  b.coins(7, 74, 78);
+
+  // Stairs + koopa gauntlet.
+  b.stairs(84, 5, b.height - 3, 1);
+  b.set(88, 7, T.KOOPA);
+  b.set(92, 12, T.KOOPA);
+  b.set(96, 12, T.GOOMBA);
+
+  // Ice Flower refill mid-level.
+  b.set(100, 6, T.QBLOCK_ICE);
+  b.hline(9, 105, 107, T.HARD);
+  b.coins(7, 104, 108);
+
+  // Pipe valley with piranhas.
+  b.pipe(114, 10, 3, true);
+  b.set(118, 12, T.GOOMBA);
+  b.pipe(122, 10, 3, true);
+
+  // Question trio.
+  b.set(128, 6, T.QBLOCK_COIN);
+  b.set(130, 6, T.QBLOCK_MUSH);
+  b.set(132, 6, T.QBLOCK_COIN);
+
+  // Big gap with mid platform.
+  b.hline(9, 135, 138, T.HARD);
+  b.coins(7, 134, 139);
+
+  // Enemy parade.
+  b.set(146, 12, T.KOOPA);
+  b.set(149, 12, T.GOOMBA);
+  b.set(152, 12, T.KOOPA);
+
+  // Final stairs + last gap stones.
+  b.stairs(166, 7, b.height - 3, 1);
+  b.hline(10, 161, 162, T.HARD);
+
+  const flagCol = 180;
+  for (let r = 3; r <= b.height - 3; r++) b.set(flagCol, r, T.FLAGPOLE);
+  b.set(flagCol, b.height - 2, T.FLAGBASE);
+
+  return {
+    name: "2-1",
+    time: 400,
+    bg: "snow",
+    flagCol,
+    tiles: b.toRows(),
+    width: w,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// World 2-castle — Bowser's lair. Lava pits, then the boss fight + axe.
+// ---------------------------------------------------------------------------
+function world6() {
+  const w = 78;
+  const b = new LevelBuilder(w);
+  b.ground(0, w - 1);
+
+  // Lava pits on the approach.
+  const gaps = [
+    [11, 13],
+    [19, 22],
+    [30, 33],
+  ];
+  for (const [a, c] of gaps) {
+    for (let r = b.height - 2; r < b.height; r++) b.hline(r, a, c, T.EMPTY);
+  }
+
+  // Guaranteed firepower: two mushroom blocks so a small Mario can reach Fire
+  // (and bricks to break for big Mario).
+  b.set(5, 9, T.QBLOCK_MUSH);
+  b.set(8, 9, T.QBLOCK_MUSH);
+  b.set(15, 6, T.QBLOCK_ICE);
+  b.hline(8, 24, 28, T.BRICK);
+  b.set(26, 5, T.QBLOCK_1UP);
+  b.coins(7, 24, 28);
+
+  // A couple of enemies + a Piranha pipe guarding the gate.
+  b.set(26, 12, T.GOOMBA);
+  b.pipe(36, 10, 3, true);
+
+  // ---- The arena (flat floor, no pits) ----
+  // Decorative low wall framing the arena entrance.
+  b.set(42, b.height - 3, T.HARD);
+  b.set(42, b.height - 4, T.HARD);
+
+  // Bowser patrols the middle; the axe sits on the far ledge.
+  b.set(55, b.height - 3, T.BOSS);
+
+  // Axe on a small pedestal at the far right.
+  b.set(66, b.height - 3, T.HARD);
+  b.set(66, b.height - 4, T.AXE);
+
+  // Sealing wall so you fight rather than run off the end.
+  for (let r = b.height - 7; r < b.height - 1; r++) b.set(70, r, T.HARD);
+
+  // No reachable flagpole — the level ends when Bowser is defeated.
+  const flagCol = w + 5;
+
+  return {
+    name: "2-castle",
+    time: 400,
+    bg: "castle",
+    flagCol,
+    boss: true,
+    tiles: b.toRows(),
+    width: w,
+  };
+}
+
+export const LEVELS = [world1(), world2(), world3(), world4(), world5(), world6()];

@@ -7,6 +7,8 @@ const SKY = {
   day: ["#5c94fc", "#8fc0ff"],
   dusk: ["#3a2a6b", "#ff8a5c"],
   night: ["#0a0a2a", "#1a1a4a"],
+  snow: ["#8fb8e8", "#dceaf7"],
+  castle: ["#1a0d12", "#3a1416"],
 };
 
 // Deterministic pseudo-random for stable decoration placement.
@@ -16,13 +18,27 @@ function rng(seed) {
   return () => (s = (s * 16807) % 2147483647) / 2147483647;
 }
 
-export function drawBackground(ctx, cam, def) {
+export function drawBackground(ctx, cam, def, time = 0) {
   const colors = SKY[def.bg] || SKY.day;
   const grad = ctx.createLinearGradient(0, 0, 0, VIEW_H);
   grad.addColorStop(0, colors[0]);
   grad.addColorStop(1, colors[1]);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+
+  if (def.bg === "castle") {
+    // Distant dark pillars + a glowing lava band at the bottom.
+    drawCastleBg(ctx, cam, time);
+    drawScenery(ctx, cam, def);
+    return;
+  }
+
+  if (def.bg === "snow") {
+    drawHills(ctx, cam, def);
+    drawScenery(ctx, cam, def);
+    drawSnow(ctx, time);
+    return;
+  }
 
   if (def.bg === "night") {
     // Stars + moon.
@@ -115,6 +131,47 @@ export function drawFirework(ctx, x, y, t, color) {
   ctx.restore();
 }
 
+// Falling snow, animated with time and gently drifting.
+function drawSnow(ctx, time) {
+  const r = rng(99173);
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  for (let i = 0; i < 90; i++) {
+    const baseX = r() * VIEW_W;
+    const speed = 20 + r() * 40;
+    const sway = Math.sin(time * 1.5 + i) * 12;
+    const x = (baseX + sway) % VIEW_W;
+    const y = (r() * VIEW_H + time * speed) % VIEW_H;
+    const s = r() > 0.8 ? 3 : 2;
+    ctx.fillRect(x, y, s, s);
+  }
+}
+
+// Castle interior: dark pillars and a glowing, bubbling lava strip.
+function drawCastleBg(ctx, cam, time) {
+  const offset = cam.x * 0.4;
+  ctx.fillStyle = "#241016";
+  const spacing = 5 * TILE;
+  for (let i = -1; i < VIEW_W / spacing + 3; i++) {
+    const x = i * spacing - (offset % (spacing * 3));
+    ctx.fillRect(x, 0, TILE * 1.4, VIEW_H - TILE * 2);
+    ctx.fillStyle = "#1a0b10";
+    for (let b = 0; b < VIEW_H / 24; b++) ctx.fillRect(x, b * 24, TILE * 1.4, 2);
+    ctx.fillStyle = "#241016";
+  }
+  // Lava glow band near the bottom.
+  const lavaY = VIEW_H - TILE;
+  const grad = ctx.createLinearGradient(0, lavaY - 20, 0, VIEW_H);
+  grad.addColorStop(0, "rgba(255,90,20,0.0)");
+  grad.addColorStop(1, "rgba(255,120,30,0.55)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, lavaY - 20, VIEW_W, TILE + 20);
+  ctx.fillStyle = "#ff7a1e";
+  for (let i = 0; i < VIEW_W; i += 24) {
+    const h = 4 + Math.sin(time * 4 + i) * 3 + 4;
+    ctx.fillRect(i, VIEW_H - h, 18, h);
+  }
+}
+
 function drawClouds(ctx, cam, def) {
   const r = rng(def.width * 3 + 1);
   const count = Math.ceil(def.width / 14);
@@ -192,6 +249,7 @@ function drawTile(ctx, ch, x, y, world, col, row, time) {
       break;
     case T.QBLOCK_COIN:
     case T.QBLOCK_MUSH:
+    case T.QBLOCK_ICE:
     case T.QBLOCK_STAR:
     case T.QBLOCK_1UP:
       questionBlock(ctx, x, y, time);
@@ -235,19 +293,27 @@ function bevel(ctx, x, y, light, dark) {
   ctx.fillRect(x + TILE - 2, y, 2, TILE);
 }
 
+const GROUND_THEME = {
+  day: { fill: "#c8530f", stud: "#9c3d08", lt: "#e07a34", dk: "#7a2c05", top: "#3aae3a", top2: "#2e8b2e" },
+  dusk: { fill: "#9a4a6a", stud: "#7a3550", lt: "#b86a86", dk: "#5c2640", top: "#7a4a8a", top2: "#5c3568" },
+  night: { fill: "#3a3550", stud: "#2a2640", lt: "#5a5170", dk: "#1f1c30", top: "#2f5a3a", top2: "#214a2c" },
+  snow: { fill: "#a8c4dc", stud: "#8aa8c4", lt: "#d0e4f2", dk: "#6a8aa6", top: "#ffffff", top2: "#d8ebf7" },
+  castle: { fill: "#4a4458", stud: "#332f42", lt: "#665f78", dk: "#221f2e", top: null, top2: null },
+};
+
 function groundBlock(ctx, x, y, world, col, row) {
-  const grassTop = !world.isSolid(col, row - 1) && world.tile(col, row - 1) !== T.COIN;
-  ctx.fillStyle = "#c8530f";
+  const th = GROUND_THEME[world.def.bg] || GROUND_THEME.day;
+  const grassTop = th.top && !world.isSolid(col, row - 1) && world.tile(col, row - 1) !== T.COIN;
+  ctx.fillStyle = th.fill;
   ctx.fillRect(x, y, TILE, TILE);
-  // studs pattern
-  ctx.fillStyle = "#9c3d08";
+  ctx.fillStyle = th.stud;
   ctx.fillRect(x + 4, y + 6, TILE - 8, 4);
   ctx.fillRect(x + 4, y + TILE - 10, TILE - 8, 4);
-  bevel(ctx, x, y, "#e07a34", "#7a2c05");
+  bevel(ctx, x, y, th.lt, th.dk);
   if (grassTop) {
-    ctx.fillStyle = "#3aae3a";
+    ctx.fillStyle = th.top;
     ctx.fillRect(x, y, TILE, 8);
-    ctx.fillStyle = "#2e8b2e";
+    ctx.fillStyle = th.top2;
     ctx.fillRect(x, y + 6, TILE, 2);
   }
 }
