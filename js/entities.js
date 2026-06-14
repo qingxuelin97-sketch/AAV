@@ -142,6 +142,9 @@ export class Player extends Body {
     this.controllable = true;
     this.skid = false;
     this.fireCooldown = 0;
+    this.squashTimer = 0;
+    this._wasGround = false;
+    this._dustT = 0;
   }
 
   get isBig() {
@@ -245,6 +248,7 @@ export class Player extends Body {
 
     this.x += this.vx * dt;
     collideX(this, world);
+    const fallVy = this.vy; // speed just before vertical resolution
     this.y += this.vy * dt;
     const { ceiling } = collideY(this, world);
 
@@ -256,6 +260,22 @@ export class Player extends Body {
     if (this.x < 0) {
       this.x = 0;
       this.vx = 0;
+    }
+
+    // Squash/stretch + dust feedback.
+    if (this.squashTimer > 0) this.squashTimer -= dt;
+    if (this.onGround && !this._wasGround && fallVy > 240) {
+      this.squashTimer = 0.12;
+      game.spawnDust?.(this.cx, this.y + this.h, fallVy > 600 ? 8 : 5);
+      if (fallVy > 640) game.addShake?.(2);
+    }
+    this._wasGround = this.onGround;
+    if (this.onGround && Math.abs(this.vx) > 220) {
+      this._dustT = (this._dustT || 0) + dt;
+      if (this._dustT > 0.09) {
+        this._dustT = 0;
+        game.spawnDust?.(this.cx - this.facing * 8, this.y + this.h, 2);
+      }
     }
 
     if (this.onGround && Math.abs(this.vx) > 12) {
@@ -271,6 +291,26 @@ export class Player extends Body {
   }
 
   draw(ctx) {
+    // Squash on landing, stretch in the air — subtle game feel.
+    let sx = 1, sy = 1;
+    if (this.squashTimer > 0) {
+      sx = 1.15;
+      sy = 0.85;
+    } else if (!this.onGround) {
+      if (this.vy < 0) {
+        sx = 0.9;
+        sy = 1.12;
+      } else {
+        sx = 0.96;
+        sy = 1.05;
+      }
+    }
+    const cx = this.x + this.w / 2;
+    const feet = this.y + this.h;
+    ctx.save();
+    ctx.translate(cx, feet);
+    ctx.scale(sx, sy);
+    ctx.translate(-cx, -feet);
     Sprites.drawMario(
       ctx,
       { x: this.x - 3, y: this.y, w: this.w + 6, h: this.h },
@@ -284,6 +324,7 @@ export class Player extends Body {
         skid: this.skid,
       }
     );
+    ctx.restore();
   }
 }
 
