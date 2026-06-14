@@ -337,55 +337,189 @@ export function drawAxe(ctx, box) {
   ctx.stroke();
 }
 
-// Bowser — the big spiky boss.
+// Bowser — a big, detailed spiky boss. Drawn in local coordinates with a
+// horizontal flip so he always faces the player.
 export function drawBowser(ctx, box, opts = {}) {
-  const { facing = -1, walkFrame = 0, hurt = false, dead = false, tint = null } = opts;
-  const flip = facing > 0;
-  const box0 = box;
-  if (hurt && Math.floor(performance.now() / 60) % 2 === 0) ctx.globalAlpha = 0.5;
+  const { facing = -1, walkFrame = 0, hurt = false, dead = false, tint = null, stunned = false, telegraph = false } = opts;
+  const { x, y, w, h } = box;
+
+  ctx.save();
+  if (hurt && Math.floor(performance.now() / 60) % 2 === 0) ctx.globalAlpha = 0.55;
+  // Local origin at the box; flip so the head faces left toward the player.
+  if (facing > 0) {
+    ctx.translate(x + w, y);
+    ctx.scale(-1, 1);
+  } else {
+    ctx.translate(x, y);
+  }
   if (dead) {
-    ctx.save();
-    ctx.translate(box.x + box.w / 2, box.y + box.h / 2);
+    ctx.translate(w / 2, h / 2);
     ctx.rotate(Math.PI);
-    box = { x: -box.w / 2, y: -box.h / 2, w: box.w, h: box.h };
+    ctx.translate(-w / 2, -h / 2);
   }
 
-  // tail
-  fr(ctx, box, 0.0, 0.55, 0.16, 0.12, "#3aa14b", flip);
-  // legs
-  fr(ctx, box, 0.2, 0.82, 0.18, 0.18, "#e0b84a", flip);
-  fr(ctx, box, 0.55, 0.82, 0.18, 0.18, "#e0b84a", flip);
-  fr(ctx, box, 0.2, 0.95, 0.2, 0.05, "#caa23a", flip); // claws
-  fr(ctx, box, 0.55, 0.95, 0.2, 0.05, "#caa23a", flip);
-  // shell (green) with spikes
-  fr(ctx, box, 0.12, 0.42, 0.62, 0.42, "#2e8b3a", flip);
-  fr(ctx, box, 0.18, 0.46, 0.5, 0.3, "#8fe07a", flip);
-  for (let i = 0; i < 4; i++) {
-    fr(ctx, box, 0.16 + i * 0.15, 0.36, 0.08, 0.1, "#f4f0d8", flip); // back spikes
+  const P = (fx, fy, fw, fh, c) => {
+    ctx.fillStyle = c;
+    ctx.fillRect(Math.round(fx * w), Math.round(fy * h), Math.ceil(fw * w), Math.ceil(fh * h));
+  };
+  const SPIKE = (fx, fy, fw, fh, c) => {
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    ctx.moveTo(fx * w, (fy + fh) * h);
+    ctx.lineTo((fx + fw / 2) * w, fy * h);
+    ctx.lineTo((fx + fw) * w, (fy + fh) * h);
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  const SHELL = "#1f7a34", SHELL2 = "#3fb24c", SHELL3 = "#9bee82";
+  const SKIN = "#e7c24a", SKIN2 = "#c79a2e", BELLY = "#f7e8b4";
+  const MANE = "#b5341f", HORN = "#f4efd6", BONE = "#fff7df";
+
+  // Tail
+  SPIKE(0.74, 0.6, 0.22, 0.12, SHELL);
+  P(0.78, 0.62, 0.18, 0.1, SHELL2);
+
+  // Back legs + clawed feet
+  P(0.5, 0.78, 0.2, 0.2, SKIN);
+  P(0.2, 0.8, 0.2, 0.18, SKIN);
+  P(0.18 + (walkFrame ? 0.02 : 0), 0.94, 0.26, 0.06, SKIN2);
+  P(0.5, 0.94, 0.26, 0.06, SKIN2);
+  ctx.fillStyle = BONE;
+  for (const fx of [0.2, 0.27, 0.34, 0.52, 0.59, 0.66]) SPIKE(fx, 0.9, 0.05, 0.06, BONE);
+
+  // Shell — layered dome with spikes
+  P(0.34, 0.34, 0.6, 0.5, SHELL);
+  P(0.4, 0.4, 0.46, 0.36, SHELL2);
+  P(0.46, 0.46, 0.32, 0.24, SHELL3);
+  // shell rim studs
+  ctx.fillStyle = "#155a25";
+  for (let i = 0; i < 4; i++) P(0.4 + i * 0.13, 0.78, 0.05, 0.05, "#155a25");
+  // big back spikes
+  for (let i = 0; i < 4; i++) SPIKE(0.36 + i * 0.15, 0.22, 0.13, 0.16, HORN);
+
+  // Belly / chest
+  P(0.18, 0.46, 0.34, 0.38, SKIN);
+  P(0.22, 0.5, 0.24, 0.32, BELLY);
+  ctx.fillStyle = SKIN2;
+  for (let i = 0; i < 3; i++) P(0.23, 0.56 + i * 0.08, 0.22, 0.02, SKIN2); // belly ridges
+
+  // Arm with claws
+  P(0.2, 0.5, 0.16, 0.22, SKIN);
+  ctx.fillStyle = BONE;
+  for (const fy of [0.66, 0.71]) SPIKE(0.16, fy, 0.06, 0.05, BONE);
+
+  // Spiked black cuffs (wrists/ankles)
+  P(0.2, 0.64, 0.16, 0.05, "#161616");
+  SPIKE(0.2, 0.6, 0.06, 0.05, BONE);
+  SPIKE(0.3, 0.6, 0.06, 0.05, BONE);
+
+  // Head
+  P(0.05, 0.22, 0.34, 0.3, SKIN);
+  P(0.0, 0.34, 0.16, 0.16, SKIN); // snout
+  // red mane around the head
+  for (const [fx, fy] of [[0.06, 0.12], [0.16, 0.08], [0.27, 0.1], [0.36, 0.16]])
+    SPIKE(fx, fy, 0.13, 0.14, MANE);
+  P(0.3, 0.18, 0.14, 0.2, MANE);
+  // horns
+  SPIKE(0.1, 0.08, 0.1, 0.14, HORN);
+  SPIKE(0.26, 0.06, 0.1, 0.14, HORN);
+  // eyebrow + eye
+  ctx.fillStyle = "#7a2b1a";
+  P(0.16, 0.26, 0.16, 0.04, "#7a2b1a");
+  P(0.2, 0.3, 0.1, 0.08, BONE);
+  P(0.22, 0.31, 0.05, 0.06, PAL.black);
+  // snout: nostrils + fanged mouth
+  P(0.02, 0.37, 0.04, 0.03, PAL.black);
+  P(0.0, 0.45, 0.22, 0.05, "#5a3a10"); // mouth line
+  ctx.fillStyle = BONE;
+  for (const fx of [0.03, 0.09, 0.15]) SPIKE(fx, 0.45, 0.05, 0.06, BONE); // lower fangs
+  if (telegraph) {
+    // glowing maw when about to attack
+    P(0.0, 0.44, 0.16, 0.04, "#ff8a2a");
   }
-  // belly
-  fr(ctx, box, 0.55, 0.5, 0.3, 0.34, "#ffe9a8", flip);
-  // arms
-  fr(ctx, box, 0.66, 0.5, 0.16, 0.2, "#e0b84a", flip);
-  // head
-  fr(ctx, box, 0.6, 0.16, 0.34, 0.3, "#e0b84a", flip);
-  fr(ctx, box, 0.62, 0.1, 0.3, 0.12, "#b03a2a", flip); // red hair
-  fr(ctx, box, 0.6, 0.06, 0.08, 0.1, "#f4f0d8", flip); // horn
-  fr(ctx, box, 0.86, 0.06, 0.08, 0.1, "#f4f0d8", flip); // horn
-  fr(ctx, box, 0.82, 0.22, 0.06, 0.07, PAL.black, flip); // eye
-  fr(ctx, box, 0.74, 0.38, 0.22, 0.06, "#f4f0d8", flip); // teeth
-  // walking foot shuffle
-  if (walkFrame) fr(ctx, box, 0.2, 0.9, 0.18, 0.05, "#caa23a", flip);
 
-  ctx.globalAlpha = 1;
-  if (dead) ctx.restore();
+  if (stunned) {
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = "#bfe9ff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
 
-  // Optional colour tint (e.g. enraged second phase or a variant boss).
   if (tint && !dead) {
     ctx.save();
-    ctx.globalAlpha = 0.32;
+    ctx.globalAlpha = 0.3;
     ctx.fillStyle = tint;
-    ctx.fillRect(box0.x, box0.y, box0.w, box0.h);
+    ctx.fillRect(x, y, w, h);
+    ctx.restore();
+  }
+}
+
+// Hammer King — the mid-game mini-boss: a burly armoured Koopa with a mallet.
+export function drawHammerKing(ctx, box, opts = {}) {
+  const { facing = -1, walkFrame = 0, hurt = false, dead = false, tint = null, stunned = false, telegraph = false } = opts;
+  const { x, y, w, h } = box;
+  ctx.save();
+  if (hurt && Math.floor(performance.now() / 60) % 2 === 0) ctx.globalAlpha = 0.55;
+  if (facing > 0) {
+    ctx.translate(x + w, y);
+    ctx.scale(-1, 1);
+  } else {
+    ctx.translate(x, y);
+  }
+  if (dead) {
+    ctx.translate(w / 2, h / 2);
+    ctx.rotate(Math.PI);
+    ctx.translate(-w / 2, -h / 2);
+  }
+  const P = (fx, fy, fw, fh, c) => {
+    ctx.fillStyle = c;
+    ctx.fillRect(Math.round(fx * w), Math.round(fy * h), Math.ceil(fw * w), Math.ceil(fh * h));
+  };
+
+  // feet
+  P(0.24 + (walkFrame ? 0.03 : 0), 0.88, 0.2, 0.12, "#f0c020");
+  P(0.54, 0.88, 0.2, 0.12, "#f0c020");
+  // green shell body
+  P(0.26, 0.36, 0.5, 0.5, "#2f8f3a");
+  P(0.32, 0.42, 0.34, 0.34, "#7fd06a");
+  P(0.36, 0.46, 0.05, 0.26, "#1f6a28");
+  P(0.52, 0.46, 0.05, 0.26, "#1f6a28");
+  // arms
+  P(0.18, 0.46, 0.14, 0.22, "#f0c020");
+  P(0.66, 0.44, 0.14, 0.22, "#f0c020");
+  // head (yellow) with hard hat
+  P(0.1, 0.18, 0.3, 0.26, "#f5d23a");
+  P(0.32, 0.26, 0.08, 0.06, "#c79a2e"); // beak
+  P(0.18, 0.24, 0.06, 0.07, PAL.black); // eye
+  P(0.06, 0.12, 0.36, 0.09, "#d8d8d8"); // helmet
+  P(0.06, 0.2, 0.36, 0.03, "#9a9a9a");
+  P(0.2, 0.06, 0.1, 0.07, "#b0b0b0"); // helmet crest
+  // the mallet (held up, ready)
+  ctx.save();
+  ctx.translate(0.74 * w, 0.36 * h);
+  ctx.rotate(telegraph ? -0.5 : -0.15);
+  ctx.fillStyle = "#6b4a2a";
+  ctx.fillRect(-2, -2, 4, 0.34 * h); // handle
+  ctx.fillStyle = "#9a9aa0";
+  ctx.fillRect(-0.12 * w, -0.16 * h, 0.24 * w, 0.16 * h); // head
+  ctx.fillStyle = "#73737a";
+  ctx.fillRect(-0.12 * w, -0.16 * h, 0.07 * w, 0.16 * h);
+  ctx.restore();
+
+  if (stunned) {
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = "#bfe9ff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+  if (tint && !dead) {
+    ctx.save();
+    ctx.globalAlpha = 0.28;
+    ctx.fillStyle = tint;
+    ctx.fillRect(x, y, w, h);
     ctx.restore();
   }
 }
@@ -403,6 +537,21 @@ export function drawHammer(ctx, box, t = 0) {
   ctx.fillStyle = "#8a8a8a";
   ctx.fillRect(-w * 0.45, -h * 0.45, w * 0.18, h * 0.4);
   ctx.restore();
+}
+
+// A ground shockwave (boss slam attack).
+export function drawShockwave(ctx, box, t = 0) {
+  const { x, y, w, h } = box;
+  const wob = Math.sin(t * 30) * 2;
+  ctx.fillStyle = "#ffd23f";
+  ctx.beginPath();
+  ctx.moveTo(x, y + h);
+  ctx.lineTo(x + w * 0.5, y + wob);
+  ctx.lineTo(x + w, y + h);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#ff7a1e";
+  ctx.fillRect(x + w * 0.3, y + h * 0.5, w * 0.4, h * 0.5);
 }
 
 export function drawCoin(ctx, box, t = 0) {

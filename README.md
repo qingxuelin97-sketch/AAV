@@ -25,10 +25,17 @@ the Web Audio API, so the whole thing is self-contained.
   themes (with falling snow and bubbling lava), each ending in a flagpole +
   fireworks. Platforming difficulty is kept gentle and **every level is
   automatically verified completable** by a headless auto-pilot in the tests.
-- **Two boss battles** — a mid-game **Hammer King** mini-boss (lobs hammers),
-  and a final **two-phase Bowser** who *enrages* (faster, more fire) at half
-  health. Hit them with projectiles or reach the bridge **axe**. Stomping
-  doesn't work — they're spiky!
+- **Two detailed, multi-attack bosses** — a mid-game **Hammer King** (lobs
+  arcing hammers) and a final **two-phase Bowser** (6 HP × 2). Each telegraphs
+  then picks from several moves: **fire stream**, **3-way spread**, **leaping
+  ground slam** (with shockwaves), and a **rushing charge** — and rages faster
+  in phase 2. Beat them with projectiles or the bridge **axe**; stomping fails.
+- **Clear item roles** (each shows a tooltip when picked up):
+  - 🍄 **Mushroom** — grow / take an extra hit (or stash a spare).
+  - 🌸 **Fire** — fireballs, your main **damage** vs. bosses.
+  - 🧊 **Ice** — iceballs **freeze** enemies into coin-dropping blocks, and
+    **stun the boss** to open a window — control, not damage.
+  - ⭐ **Star** — invincibility that blasts through (and damages bosses).
 - **Reserve item box** — every level starts with a spare 🍄 you can deploy any
   time with `C`; spare power-ups you grab get stashed there too.
 - **Power-ups** — Super Mushroom (grow), **Fire Flower** (bouncing fireballs),

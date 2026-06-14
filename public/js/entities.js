@@ -684,12 +684,14 @@ export class Fireball extends Body {
 }
 
 // --------------------------------------------------------------------------
-// Boss (Bowser & variants). Patrols, jumps, hurls projectiles, takes several
-// hits, and can rage into a tougher second phase.
+// Boss (Bowser & the Hammer King mini-boss). A telegraphed attack state
+// machine: it patrols toward you, then chooses from several moves — breathe,
+// spread, lobbed hammers, a leaping ground slam, or a rushing charge. Hits take
+// it down; ice stuns it; it rages into a faster second phase.
 // --------------------------------------------------------------------------
 export class Bowser extends Body {
   constructor(col, row, opts = {}) {
-    super(col * TILE, (row + 1) * TILE - 64, 56, 64);
+    super(col * TILE, (row + 1) * TILE - 72, 64, 72);
     this.kind = "boss";
     this.variant = opts.variant || "bowser";
     this.name = opts.name || "BOWSER";
@@ -698,23 +700,31 @@ export class Bowser extends Body {
     this.maxPhase = opts.phases || 1;
     this.phase = 1;
     this.hp = this.hpPerPhase;
-    this.speed = opts.speed || 75;
-    this.fireInterval = opts.fireInterval || 1.8;
-    this.jumpInterval = opts.jumpInterval || 2.2;
-    this.arc = !!opts.arc; // lobbed (hammer) projectiles
-    this.spread = opts.spread || 1; // projectiles per volley
+    this.speed = opts.speed || 70;
     this.facing = -1;
-    this.vx = -this.speed;
     this.minX = Math.max(TILE, (col - 5) * TILE);
     this.maxX = (col + 2) * TILE;
-    this.walkTimer = 0;
     this.walkFrame = 0;
-    this.jumpTimer = this.jumpInterval;
-    this.fireTimer = this.fireInterval;
+    this.walkAnim = 0;
     this.invuln = 0;
+    this.stunTimer = 0;
     this.enraged = false;
     this.state = "alive"; // alive | dead
     this.deadTimer = 0;
+    // attack state machine
+    this.action = "walk";
+    this.moveTimer = 1.2;
+    this.tTimer = 0;
+    this.cTimer = 0;
+    this.pending = null;
+    this.telegraph = false;
+    this.slamPending = false;
+  }
+  get cooldown() {
+    return this.enraged ? 0.8 : 1.5;
+  }
+  get telegraphDur() {
+    return this.enraged ? 0.32 : 0.5;
   }
   nextPhase(game) {
     this.phase += 1;
@@ -722,10 +732,8 @@ export class Bowser extends Body {
     this.invuln = 1.4;
     this.enraged = true;
     this.speed *= 1.4;
-    this.vx = this.vx < 0 ? -this.speed : this.speed;
-    this.fireInterval *= 0.6;
-    this.jumpInterval *= 0.7;
-    this.spread = Math.min(3, this.spread + 1);
+    this.action = "walk";
+    this.moveTimer = 0.6;
     game.audio.bossRoar();
   }
   hit(game) {
@@ -734,9 +742,8 @@ export class Bowser extends Body {
     this.invuln = 0.8;
     game.audio.bossHit();
     if (this.hp <= 0) {
-      if (this.phase < this.maxPhase) {
-        this.nextPhase(game);
-      } else {
+      if (this.phase < this.maxPhase) this.nextPhase(game);
+      else {
         this.state = "dead";
         this.vx = 0;
         this.vy = -220;
@@ -744,47 +751,152 @@ export class Bowser extends Body {
     }
     return true;
   }
+  stun(game) {
+    if (this.state !== "alive") return false;
+    this.stunTimer = 1.6;
+    this.action = "walk";
+    this.telegraph = false;
+    this.vx = 0;
+    game.audio.freeze();
+    return true;
+  }
+  _pickMove() {
+    const base =
+      this.variant === "mini"
+        ? ["hammers", "hammers", "charge", "slam"]
+        : ["breathe", "spread", "slam", "charge"];
+    if (this.phase >= 2) base.push("spread", "breathe", "charge");
+    return base[(Math.random() * base.length) | 0];
+  }
   update(dt, world, player, game) {
     if (this.invuln > 0) this.invuln -= dt;
+    this.walkAnim += dt;
+    if (this.walkAnim > 0.18) {
+      this.walkAnim = 0;
+      this.walkFrame ^= 1;
+    }
+
     if (this.state === "dead") {
       this.vy += GRAVITY * dt;
       this.y += this.vy * dt;
       this.deadTimer += dt;
       return;
     }
+
+    const grav = () => {
+      this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt);
+      this.y += this.vy * dt;
+      collideY(this, world);
+    };
+    const clampX = () => {
+      if (this.x < this.minX) this.x = this.minX;
+      else if (this.x > this.maxX) this.x = this.maxX;
+    };
+
+    // Stunned by ice: frozen in place (a window to attack it).
+    if (this.stunTimer > 0) {
+      this.stunTimer -= dt;
+      this.vx = 0;
+      grav();
+      return;
+    }
+
     if (player) this.facing = player.cx < this.cx ? -1 : 1;
 
-    this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt);
-    this.x += this.vx * dt;
-    if (this.x < this.minX) {
-      this.x = this.minX;
-      this.vx = Math.abs(this.vx);
-    } else if (this.x > this.maxX) {
-      this.x = this.maxX;
-      this.vx = -Math.abs(this.vx);
+    switch (this.action) {
+      case "walk": {
+        // Stalk toward the player.
+        const dir = player ? (player.cx < this.cx ? -1 : 1) : -1;
+        this.vx = dir * this.speed;
+        this.x += this.vx * dt;
+        clampX();
+        grav();
+        this.moveTimer -= dt;
+        if (this.moveTimer <= 0 && this.onGround) {
+          this.pending = this._pickMove();
+          this.action = "telegraph";
+          this.tTimer = this.telegraphDur;
+          this.telegraph = true;
+          this.vx = 0;
+        }
+        break;
+      }
+      case "telegraph": {
+        grav();
+        this.tTimer -= dt;
+        if (this.tTimer <= 0) {
+          this.telegraph = false;
+          this._execute(this.pending, player, game);
+        }
+        break;
+      }
+      case "charge": {
+        this.x += this.vx * dt;
+        clampX();
+        grav();
+        this.cTimer -= dt;
+        if (this.cTimer <= 0 || this.x <= this.minX || this.x >= this.maxX) {
+          this.action = "walk";
+          this.moveTimer = this.cooldown;
+        }
+        break;
+      }
+      case "air": {
+        this.x += this.vx * dt;
+        clampX();
+        grav();
+        if (this.onGround) {
+          if (this.slamPending) {
+            this.slamPending = false;
+            game.bossShock(this);
+          }
+          this.action = "walk";
+          this.moveTimer = this.cooldown;
+        }
+        break;
+      }
+      default:
+        grav();
     }
-    this.y += this.vy * dt;
-    collideY(this, world);
-
-    this.jumpTimer -= dt;
-    if (this.jumpTimer <= 0 && this.onGround) {
-      this.vy = -560;
-      this.jumpTimer = this.jumpInterval + Math.random();
-      game.audio.bossRoar();
-    }
-    this.fireTimer -= dt;
-    if (this.fireTimer <= 0) {
-      this.fireTimer = this.fireInterval + Math.random() * 0.5;
-      game.spawnBossFire(this, player);
-    }
-    this.walkTimer += dt;
-    if (this.walkTimer > 0.2) {
-      this.walkTimer = 0;
-      this.walkFrame ^= 1;
+  }
+  _execute(move, player, game) {
+    switch (move) {
+      case "breathe":
+        game.bossBreathe(this, player);
+        this.action = "walk";
+        this.moveTimer = this.cooldown;
+        break;
+      case "spread":
+        game.bossSpread(this, player);
+        this.action = "walk";
+        this.moveTimer = this.cooldown;
+        break;
+      case "hammers":
+        game.bossHammers(this, player);
+        this.action = "walk";
+        this.moveTimer = this.cooldown;
+        break;
+      case "slam":
+        this.vy = -740;
+        this.vx = this.facing * 80;
+        this.slamPending = true;
+        this.action = "air";
+        game.audio.bossRoar();
+        break;
+      case "charge":
+        this.vx = this.facing * (this.enraged ? 430 : 350);
+        this.cTimer = 0.7;
+        this.action = "charge";
+        game.audio.bossRoar();
+        break;
+      default:
+        this.action = "walk";
+        this.moveTimer = this.cooldown;
     }
   }
   draw(ctx) {
-    Sprites.drawBowser(
+    const draw = this.variant === "mini" ? Sprites.drawHammerKing : Sprites.drawBowser;
+    draw(
       ctx,
       { x: this.x, y: this.y, w: this.w, h: this.h },
       {
@@ -792,39 +904,45 @@ export class Bowser extends Body {
         walkFrame: this.walkFrame,
         hurt: this.invuln > 0,
         dead: this.state === "dead",
+        stunned: this.stunTimer > 0,
+        telegraph: this.telegraph,
         tint: this.enraged ? "#ff4040" : this.tint,
       }
     );
   }
 }
 
-// A boss projectile — straight fire breath or a lobbed hammer (arc).
+// A boss projectile: straight fire breath, a lobbed hammer (arc), or a ground
+// shockwave that skims along the floor.
 export class BossFireball extends Body {
-  constructor(x, y, vx, vy, arc = false) {
-    super(x, y, 20, 18);
+  constructor(x, y, vx, vy, mode = "fire") {
+    super(x, y, mode === "shock" ? 22 : 20, mode === "shock" ? 22 : 18);
     this.kind = "bossfire";
     this.vx = vx;
     this.vy = vy;
-    this.arc = arc;
-    this.life = 4.5;
+    this.mode = mode;
+    this.life = mode === "shock" ? 2.2 : 4.5;
     this.t = 0;
   }
   update(dt, world) {
     this.t += dt;
     this.life -= dt;
     if (this.life <= 0) this.dead = true;
-    this.vy += GRAVITY * (this.arc ? 0.6 : 0.18) * dt;
+    const g = this.mode === "hammer" ? 0.6 : this.mode === "shock" ? 0 : 0.18;
+    this.vy += GRAVITY * g * dt;
     this.x += this.vx * dt;
     this.y += this.vy * dt;
-    if (world.isSolid(Math.floor(this.cx / TILE), Math.floor(this.cy / TILE))) this.dead = true;
-    if (this.y > world.pixelHeight + 100 || this.x < -60) this.dead = true;
+    // Shockwaves ride the floor and ignore the ground tile they sit on.
+    if (this.mode !== "shock" && world.isSolid(Math.floor(this.cx / TILE), Math.floor(this.cy / TILE)))
+      this.dead = true;
+    if (this.y > world.pixelHeight + 100 || this.x < -60 || this.x > world.pixelWidth + 60)
+      this.dead = true;
   }
   draw(ctx) {
-    if (this.arc) {
-      Sprites.drawHammer(ctx, { x: this.x, y: this.y, w: this.w, h: this.h }, this.t);
-    } else {
-      Sprites.drawFireball(ctx, { x: this.x, y: this.y, w: this.w, h: this.h }, this.t, "fire");
-    }
+    const box = { x: this.x, y: this.y, w: this.w, h: this.h };
+    if (this.mode === "hammer") Sprites.drawHammer(ctx, box, this.t);
+    else if (this.mode === "shock") Sprites.drawShockwave(ctx, box, this.t);
+    else Sprites.drawFireball(ctx, box, this.t, "fire");
   }
 }
 
