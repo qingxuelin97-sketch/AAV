@@ -1,5 +1,12 @@
 // Level definitions. Levels are built programmatically with a small builder so
 // tile alignment is always correct, then exposed as arrays of row strings.
+//
+// Design rules (kept gentle on purpose, and verified by tests/solvable.test.js
+// which runs an auto-pilot through every non-boss level):
+//   * the main path is continuous ground with pits no wider than 3 tiles
+//   * pipes/walls are at most 3 tiles tall so a single jump always clears them
+//   * stairs and floating platforms are optional bonus routes, never the only way
+//   * the run up to each pit and to the flag is flat
 
 import { T, ROWS } from "./constants.js";
 
@@ -9,667 +16,346 @@ class LevelBuilder {
     this.height = height;
     this.grid = Array.from({ length: height }, () => new Array(width).fill(T.EMPTY));
   }
-
   set(col, row, ch) {
     if (row < 0 || row >= this.height || col < 0 || col >= this.width) return;
     this.grid[row][col] = ch;
   }
-
   hline(row, from, to, ch) {
     for (let c = from; c <= to; c++) this.set(c, row, ch);
   }
-
-  // Solid ground from col `from` to `to`, occupying rows [topRow .. bottom].
   ground(from, to, topRow = this.height - 2) {
     for (let r = topRow; r < this.height; r++) this.hline(r, from, to, T.GROUND);
   }
-
-  // A vertical pipe whose opening top is at row `topRow`, height in tiles.
-  // Pass piranha=true to plant a Piranha Plant inside it.
-  pipe(col, topRow, heightTiles, piranha = false) {
+  // Cut a pit `len` tiles wide starting at `col`.
+  pit(col, len) {
+    for (let r = this.height - 2; r < this.height; r++) this.hline(r, col, col + len - 1, T.EMPTY);
+  }
+  pipe(col, heightTiles, piranha = false) {
+    const topRow = this.height - 2 - heightTiles;
     this.set(col, topRow, T.PIPE_TL);
     this.set(col + 1, topRow, T.PIPE_TR);
-    for (let r = topRow + 1; r < topRow + heightTiles; r++) {
+    for (let r = topRow + 1; r < this.height - 2; r++) {
       this.set(col, r, T.PIPE_BL);
       this.set(col + 1, r, T.PIPE_BR);
     }
-    if (piranha) this.set(col, topRow - 1, T.PIRANHA); // marker, one tile above the rim
+    if (piranha) this.set(col, topRow - 1, T.PIRANHA);
   }
-
-  // A staircase of HARD blocks going up to the right (or left if dir=-1).
-  stairs(startCol, steps, baseRow = this.height - 3, dir = 1) {
-    for (let i = 0; i < steps; i++) {
+  // Short bonus staircase (3 steps) — never blocks the main flat path.
+  steps(startCol, n = 3, dir = 1) {
+    for (let i = 0; i < n; i++) {
       const col = startCol + i * dir;
-      for (let h = 0; h <= i; h++) {
-        this.set(col, baseRow - h, T.HARD);
-      }
+      for (let h = 0; h <= i; h++) this.set(col, this.height - 3 - h, T.HARD);
     }
   }
-
   coins(row, from, to, step = 1) {
     for (let c = from; c <= to; c += step) this.set(c, row, T.COIN);
   }
-
+  flag(col) {
+    for (let r = 3; r <= this.height - 3; r++) this.set(col, r, T.FLAGPOLE);
+    this.set(col, this.height - 2, T.FLAGBASE);
+    return col;
+  }
   toRows() {
     return this.grid.map((row) => row.join(""));
   }
 }
 
 // ---------------------------------------------------------------------------
-// World 1-1 — the gentle introduction.
+// World 1-1 — gentle introduction.
 // ---------------------------------------------------------------------------
 function world1() {
-  const w = 212;
+  const w = 170;
   const b = new LevelBuilder(w);
   b.ground(0, w - 1);
+  b.pit(40, 2);
+  b.pit(70, 3);
+  b.pit(120, 2);
 
-  // Gaps (clear the ground rows to make pits).
-  const gaps = [
-    [69, 71],
-    [86, 88],
-    [153, 155],
-  ];
-  for (const [a, c] of gaps) {
-    for (let r = b.height - 2; r < b.height; r++) b.hline(r, a, c, T.EMPTY);
-  }
-
-  // Opening question block.
-  b.set(16, 9, T.QBLOCK_COIN);
-
-  // First block cluster: brick ? brick ? brick (with a mushroom).
+  b.set(14, 9, T.QBLOCK_COIN);
+  b.set(18, 9, T.BRICK);
+  b.set(19, 9, T.QBLOCK_MUSH);
   b.set(20, 9, T.BRICK);
-  b.set(21, 9, T.QBLOCK_MUSH);
-  b.set(22, 9, T.BRICK);
-  b.set(23, 9, T.QBLOCK_COIN);
-  b.set(24, 9, T.BRICK);
-  b.set(22, 5, T.QBLOCK_COIN); // high bonus block
+  b.coins(9, 22, 26);
 
-  // Pipes of increasing height (the tallest hides a Piranha Plant).
-  b.pipe(28, 11, 2);
-  b.pipe(38, 10, 3);
-  b.pipe(46, 9, 4, true);
-  b.pipe(57, 9, 4);
+  b.set(30, 12, T.GOOMBA);
+  b.pipe(34, 2);
+  b.pipe(50, 3, true);
+  b.set(58, 12, T.GOOMBA);
+  b.set(59, 12, T.GOOMBA);
 
-  // A Super Star hidden in a brick up high — grab it and go invincible!
-  b.set(35, 5, T.QBLOCK_STAR);
+  b.coins(8, 70, 72); // arc over the pit
+  b.set(80, 9, T.QBLOCK_COIN);
+  b.set(82, 9, T.QBLOCK_STAR);
+  b.set(84, 9, T.QBLOCK_COIN);
 
-  // Goombas.
-  b.set(33, 12, T.GOOMBA);
-  b.set(52, 12, T.GOOMBA);
-  b.set(53, 12, T.GOOMBA);
-  b.set(82, 12, T.GOOMBA);
+  b.set(92, 12, T.KOOPA);
+  b.pipe(100, 2);
+  b.set(108, 12, T.GOOMBA);
+  b.set(112, 9, T.QBLOCK_1UP);
 
-  // Floating coins over the first pit.
-  b.coins(8, 69, 71);
+  b.set(140, 12, T.GOOMBA);
+  b.coins(9, 145, 150);
 
-  // Mid brick run with a hidden 1-up.
-  b.set(77, 9, T.BRICK);
-  b.set(78, 9, T.BRICK);
-  b.set(79, 9, T.QBLOCK_1UP);
-  b.set(80, 9, T.BRICK);
-  b.set(81, 9, T.BRICK);
-
-  // Second pit + coin arc.
-  b.coins(8, 86, 88);
-
-  // Koopa patrol on a brick platform.
-  b.hline(9, 96, 102, T.BRICK);
-  b.set(99, 8, T.KOOPA);
-  b.coins(7, 97, 101);
-
-  // A double pipe valley with a goomba between.
-  b.pipe(108, 10, 3);
-  b.set(112, 12, T.GOOMBA);
-  b.pipe(114, 10, 3);
-
-  // Question block row.
-  b.set(122, 6, T.QBLOCK_COIN);
-  b.set(124, 6, T.QBLOCK_MUSH);
-  b.set(126, 6, T.QBLOCK_COIN);
-  b.coins(10, 122, 126, 2);
-
-  // Brick steps up then a long brick bridge with koopa.
-  b.stairs(132, 4, b.height - 3, 1);
-  b.hline(9, 140, 150, T.BRICK);
-  b.set(145, 8, T.KOOPA);
-  b.set(143, 8, T.GOOMBA);
-  b.coins(7, 141, 149, 2);
-
-  // Big pit (153-155) already cut; coins to encourage the run-jump.
-  b.coins(7, 152, 156);
-
-  // Pyramid stairs up and down (classic).
-  b.stairs(162, 4, b.height - 3, 1);
-  b.stairs(171, 4, b.height - 3, -1);
-
-  // Final goombas before the flag.
-  b.set(180, 12, T.GOOMBA);
-  b.set(186, 12, T.GOOMBA);
-
-  // Ending staircase.
-  b.stairs(190, 8, b.height - 3, 1);
-
-  // Flagpole + base.
-  const flagCol = 202;
-  for (let r = 3; r <= b.height - 3; r++) b.set(flagCol, r, T.FLAGPOLE);
-  b.set(flagCol, b.height - 2, T.FLAGBASE);
-
-  return {
-    name: "1-1",
-    time: 400,
-    bg: "day",
-    flagCol,
-    tiles: b.toRows(),
-    width: w,
-  };
+  return { name: "1-1", time: 400, bg: "day", flagCol: b.flag(160), tiles: b.toRows(), width: w };
 }
 
 // ---------------------------------------------------------------------------
-// World 1-2 — pipes, gaps and tighter platforming.
+// World 1-2 — dusk, a few more enemies and pipes.
 // ---------------------------------------------------------------------------
 function world2() {
-  const w = 224;
+  const w = 178;
   const b = new LevelBuilder(w);
   b.ground(0, w - 1);
-
-  const gaps = [
-    [30, 33],
-    [58, 61],
-    [70, 73],
-    [110, 114],
-    [140, 142],
-    [170, 174],
-  ];
-  for (const [a, c] of gaps) {
-    for (let r = b.height - 2; r < b.height; r++) b.hline(r, a, c, T.EMPTY);
-  }
-
-  // Intro coins + mushroom.
-  b.set(10, 9, T.QBLOCK_MUSH);
-  b.coins(8, 12, 16);
-
-  // Floating brick islands over the first gap.
-  b.hline(8, 29, 34, T.BRICK);
-  b.set(31, 7, T.QBLOCK_COIN);
-  b.coins(6, 30, 33);
-
-  // Pipe maze (two of them guarded by Piranha Plants).
-  b.pipe(40, 11, 2);
-  b.pipe(45, 10, 3, true);
-  b.pipe(50, 9, 4, true);
-  b.set(43, 12, T.GOOMBA);
-  b.set(48, 12, T.GOOMBA);
-
-  // Floating platforms over twin gaps.
-  b.hline(9, 57, 62, T.HARD);
-  b.hline(9, 69, 74, T.HARD);
-  b.coins(7, 58, 61);
-  b.coins(7, 70, 73);
-  b.set(72, 8, T.KOOPA);
-
-  // Brick ceiling section with coins beneath.
-  b.hline(5, 82, 92, T.BRICK);
-  b.set(86, 5, T.QBLOCK_1UP);
-  b.coins(11, 82, 92, 2);
-  b.set(84, 12, T.GOOMBA);
-  b.set(90, 12, T.GOOMBA);
-
-  // Tall pipe wall to climb over.
-  b.pipe(98, 8, 5);
-  b.set(101, 12, T.GOOMBA);
-
-  // Fire Flower reward (gives fire if you arrive big) up on the ceiling run.
-  b.set(88, 5, T.QBLOCK_MUSH);
-  b.set(106, 6, T.QBLOCK_STAR);
-
-  // Big gap with a single mid platform.
-  b.hline(9, 111, 113, T.HARD);
-  b.coins(7, 110, 114);
-
-  // Staircase + koopa.
-  b.stairs(120, 5, b.height - 3, 1);
-  b.set(124, 7, T.KOOPA);
-
-  // Question block trio.
-  b.set(132, 6, T.QBLOCK_COIN);
-  b.set(134, 6, T.QBLOCK_MUSH);
-  b.set(136, 6, T.QBLOCK_COIN);
-
-  // Floating step over a gap.
-  b.hline(8, 139, 143, T.BRICK);
-  b.coins(6, 140, 142);
-
-  // Descending then ascending pipes.
-  b.pipe(150, 9, 4);
-  b.pipe(158, 10, 3);
-  b.pipe(166, 11, 2);
-  b.set(154, 12, T.GOOMBA);
-  b.set(162, 12, T.GOOMBA);
-
-  // Long gap with hard-block stepping stones.
-  b.hline(10, 169, 170, T.HARD);
-  b.hline(8, 173, 174, T.HARD);
-  b.coins(6, 173, 174);
-
-  // Enemy gauntlet.
-  b.set(182, 12, T.GOOMBA);
-  b.set(184, 12, T.KOOPA);
-  b.set(188, 12, T.GOOMBA);
-
-  // Final ascending stairs.
-  b.stairs(196, 7, b.height - 3, 1);
-
-  const flagCol = 214;
-  for (let r = 3; r <= b.height - 3; r++) b.set(flagCol, r, T.FLAGPOLE);
-  b.set(flagCol, b.height - 2, T.FLAGBASE);
-
-  return {
-    name: "1-2",
-    time: 380,
-    bg: "dusk",
-    flagCol,
-    tiles: b.toRows(),
-    width: w,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// World 1-3 — the gauntlet: stairs, koopas and precision jumps.
-// ---------------------------------------------------------------------------
-function world3() {
-  const w = 236;
-  const b = new LevelBuilder(w);
-  b.ground(0, w - 1);
-
-  const gaps = [
-    [24, 27],
-    [44, 48],
-    [66, 70],
-    [88, 93],
-    [120, 125],
-    [150, 156],
-    [190, 195],
-  ];
-  for (const [a, c] of gaps) {
-    for (let r = b.height - 2; r < b.height; r++) b.hline(r, a, c, T.EMPTY);
-  }
+  [25, 55, 88, 120, 145].forEach((c, i) => b.pit(c, i % 2 ? 3 : 2));
 
   b.set(8, 9, T.QBLOCK_MUSH);
+  b.coins(9, 11, 15);
+  b.set(18, 12, T.GOOMBA);
 
-  // Floating brick path over a gap.
-  b.hline(8, 23, 28, T.BRICK);
-  b.set(25, 6, T.QBLOCK_COIN);
-  b.coins(6, 24, 27);
+  b.pipe(33, 2, true);
+  b.set(40, 9, T.QBLOCK_MUSH);
+  b.set(46, 12, T.GOOMBA);
+  b.set(48, 12, T.GOOMBA);
 
-  // Staircase tower.
-  b.stairs(33, 6, b.height - 3, 1);
-  b.set(36, 7, T.KOOPA);
+  b.set(62, 9, T.QBLOCK_COIN);
+  b.set(64, 9, T.QBLOCK_ICE);
+  b.set(66, 9, T.QBLOCK_COIN);
+  b.set(72, 12, T.KOOPA);
 
-  // Floating hard-block islands across a wide gap.
-  b.hline(9, 43, 44, T.HARD);
-  b.hline(7, 46, 47, T.HARD);
-  b.coins(5, 46, 47);
-  b.set(47, 6, T.GOOMBA);
+  b.pipe(76, 2, true);
+  b.coins(8, 88, 90);
+  b.set(102, 12, T.GOOMBA);
+  b.set(106, 9, T.QBLOCK_STAR);
 
-  // Pipe + koopa combo (Piranha Plant in the pipe).
-  b.pipe(54, 9, 4, true);
-  b.set(57, 12, T.GOOMBA);
-  b.set(59, 12, T.KOOPA);
-  b.set(50, 4, T.QBLOCK_STAR); // star to survive the gauntlet
+  b.set(116, 12, T.KOOPA);
+  b.set(128, 12, T.GOOMBA);
+  b.set(130, 12, T.GOOMBA);
+  b.pipe(136, 2);
+  b.coins(9, 150, 156);
 
-  // Bridge of bricks with bonus.
-  b.hline(8, 64, 72, T.BRICK);
-  b.set(68, 4, T.QBLOCK_1UP);
-  b.coins(7, 65, 71, 2);
-  b.set(67, 7, T.KOOPA);
-
-  // Ceiling spikes of bricks with coins.
-  b.hline(4, 78, 88, T.BRICK);
-  b.coins(11, 78, 88, 2);
-  b.set(82, 12, T.GOOMBA);
-  b.set(85, 12, T.GOOMBA);
-
-  // Wide pit with double platforms.
-  b.hline(10, 89, 90, T.HARD);
-  b.hline(8, 92, 93, T.HARD);
-  b.coins(6, 92, 93);
-
-  // Pyramid up/down.
-  b.stairs(100, 5, b.height - 3, 1);
-  b.stairs(110, 5, b.height - 3, -1);
-  b.set(105, 7, T.KOOPA);
-
-  // Big chasm — needs a running jump from a platform.
-  b.hline(9, 118, 119, T.HARD);
-  b.hline(9, 126, 127, T.HARD);
-  b.coins(7, 120, 125);
-
-  // Question block cluster.
-  b.set(132, 6, T.QBLOCK_COIN);
-  b.set(133, 6, T.QBLOCK_MUSH);
-  b.set(134, 6, T.QBLOCK_COIN);
-  b.set(133, 10, T.QBLOCK_COIN);
-
-  // Triple pipe wall climb (two with Piranha Plants).
-  b.pipe(140, 11, 2);
-  b.pipe(143, 9, 4, true);
-  b.pipe(146, 7, 6, true);
-  b.set(149, 12, T.GOOMBA);
-
-  // The longest gap with a single mid stone.
-  b.hline(9, 152, 154, T.HARD);
-  b.coins(7, 150, 156);
-
-  // Enemy parade on flat ground.
-  b.set(162, 12, T.GOOMBA);
-  b.set(164, 12, T.KOOPA);
-  b.set(168, 12, T.GOOMBA);
-  b.set(172, 12, T.KOOPA);
-
-  // Tall staircase, then floating bonus.
-  b.stairs(178, 6, b.height - 3, 1);
-  b.hline(5, 186, 189, T.BRICK);
-  b.set(187, 5, T.QBLOCK_1UP);
-  b.coins(7, 190, 195);
-
-  // Final approach with stepping stones over the last pit.
-  b.hline(10, 191, 192, T.HARD);
-  b.hline(8, 194, 195, T.HARD);
-
-  // Grand ending staircase.
-  b.stairs(200, 9, b.height - 3, 1);
-  b.set(205, 12, T.GOOMBA);
-
-  const flagCol = 226;
-  for (let r = 2; r <= b.height - 3; r++) b.set(flagCol, r, T.FLAGPOLE);
-  b.set(flagCol, b.height - 2, T.FLAGBASE);
-
-  return {
-    name: "1-3",
-    time: 360,
-    bg: "night",
-    flagCol,
-    tiles: b.toRows(),
-    width: w,
-  };
+  return { name: "1-2", time: 400, bg: "dusk", flagCol: b.flag(168), tiles: b.toRows(), width: w };
 }
 
 // ---------------------------------------------------------------------------
-// World 1-4 — the castle finale: lava-like pits, Piranha gardens and a wall of
-// shells. The toughest test, capped by a triumphant flag.
+// World 1-3 — night, coin-rich.
 // ---------------------------------------------------------------------------
-function world4() {
-  const w = 248;
+function world3() {
+  const w = 182;
   const b = new LevelBuilder(w);
   b.ground(0, w - 1);
+  [30, 50, 78, 100, 132, 150].forEach((c, i) => b.pit(c, i % 3 === 0 ? 3 : 2));
 
-  const gaps = [
-    [20, 24],
-    [40, 45],
-    [60, 66],
-    [84, 90],
-    [108, 114],
-    [132, 139],
-    [158, 164],
-    [188, 196],
-  ];
-  for (const [a, c] of gaps) {
-    for (let r = b.height - 2; r < b.height; r++) b.hline(r, a, c, T.EMPTY);
-  }
+  b.set(10, 9, T.QBLOCK_MUSH);
+  b.set(12, 9, T.QBLOCK_ICE);
+  b.coins(9, 16, 22);
+  b.set(24, 12, T.GOOMBA);
 
-  // Generous early power-ups, because it gets hard fast.
-  b.set(7, 9, T.QBLOCK_MUSH);
-  b.set(12, 9, T.QBLOCK_STAR);
+  b.pipe(38, 2, true);
+  b.set(44, 12, T.KOOPA);
+  b.set(58, 9, T.QBLOCK_COIN);
+  b.set(60, 9, T.QBLOCK_COIN);
+  b.set(62, 9, T.QBLOCK_1UP);
 
-  // Brick spans bridging the first chasms.
-  b.hline(8, 19, 25, T.BRICK);
-  b.set(22, 5, T.QBLOCK_COIN);
-  b.coins(6, 20, 24);
-  b.hline(9, 39, 46, T.HARD);
-  b.coins(7, 40, 45);
+  b.set(70, 12, T.GOOMBA);
+  b.set(72, 12, T.GOOMBA);
+  b.pipe(86, 3, true);
+  b.set(94, 12, T.KOOPA);
+  b.set(96, 12, T.KOOPA);
 
-  // Piranha garden — three pipes in a row, all guarded.
-  b.pipe(50, 10, 3, true);
-  b.pipe(54, 10, 3, true);
-  b.pipe(58, 10, 3, true);
-  b.set(52, 12, T.GOOMBA);
+  b.set(108, 9, T.QBLOCK_STAR);
+  b.coins(9, 112, 118);
+  b.set(140, 12, T.GOOMBA);
+  b.pipe(160, 2);
+  b.coins(9, 154, 158);
 
-  // Floating platforms over a wide pit.
-  b.hline(9, 61, 62, T.HARD);
-  b.hline(7, 64, 65, T.HARD);
-  b.coins(5, 64, 65);
+  return { name: "1-3", time: 400, bg: "night", flagCol: b.flag(172), tiles: b.toRows(), width: w };
+}
 
-  // Koopa wall: a brick bridge crowded with troopas.
-  b.hline(9, 70, 82, T.BRICK);
-  b.set(72, 8, T.KOOPA);
-  b.set(76, 8, T.KOOPA);
-  b.set(80, 8, T.KOOPA);
-  b.set(74, 4, T.QBLOCK_1UP);
-  b.coins(7, 70, 82, 3);
+// ---------------------------------------------------------------------------
+// World 1-4 — day, slightly longer.
+// ---------------------------------------------------------------------------
+function world4() {
+  const w = 190;
+  const b = new LevelBuilder(w);
+  b.ground(0, w - 1);
+  [22, 44, 66, 92, 118, 140, 162].forEach((c, i) => b.pit(c, i % 2 ? 3 : 2));
 
-  // Stepping stones across lava-like gap (84-90).
-  b.hline(10, 85, 86, T.HARD);
-  b.hline(8, 88, 89, T.HARD);
-  b.coins(6, 85, 89, 2);
+  b.set(8, 9, T.QBLOCK_MUSH);
+  b.set(14, 12, T.GOOMBA);
+  b.pipe(30, 2, true);
+  b.set(36, 12, T.GOOMBA);
+  b.set(38, 12, T.KOOPA);
+  b.set(52, 9, T.QBLOCK_ICE);
+  b.set(54, 9, T.QBLOCK_COIN);
+  b.coins(9, 58, 62);
 
-  // Pyramid climb with a fire flower at the top.
-  b.stairs(95, 5, b.height - 3, 1);
-  b.set(99, 6, T.QBLOCK_MUSH);
+  b.pipe(74, 3, true);
+  b.set(82, 12, T.GOOMBA);
+  b.set(84, 12, T.GOOMBA);
+  b.set(100, 9, T.QBLOCK_STAR);
+  b.set(102, 9, T.QBLOCK_1UP);
+  b.set(110, 12, T.KOOPA);
 
-  // Twin pipes around a gap (108-114).
-  b.pipe(104, 9, 4, true);
-  b.hline(9, 110, 112, T.HARD);
-  b.coins(7, 110, 112);
-  b.pipe(116, 9, 4, true);
+  b.set(134, 12, T.GOOMBA);
+  b.pipe(150, 2, true);
+  b.set(158, 12, T.GOOMBA);
+  b.coins(9, 168, 174);
 
-  // Question cluster + star.
-  b.set(122, 6, T.QBLOCK_COIN);
-  b.set(124, 6, T.QBLOCK_STAR);
-  b.set(126, 6, T.QBLOCK_COIN);
-  b.set(128, 12, T.GOOMBA);
+  return { name: "1-4", time: 400, bg: "day", flagCol: b.flag(182), tiles: b.toRows(), width: w };
+}
 
-  // Long chasm (132-139) with a mid platform and coin reward.
-  b.hline(9, 134, 137, T.HARD);
-  b.coins(7, 132, 139);
+// ---------------------------------------------------------------------------
+// World 2-1 — snow plains (Ice Flowers + falling snow background).
+// ---------------------------------------------------------------------------
+function snow1() {
+  const w = 184;
+  const b = new LevelBuilder(w);
+  b.ground(0, w - 1);
+  [26, 48, 72, 96, 124, 150].forEach((c, i) => b.pit(c, i % 2 ? 3 : 2));
 
-  // Descending pipe staircase.
-  b.pipe(144, 8, 5);
-  b.pipe(150, 9, 4, true);
-  b.pipe(155, 10, 3);
-  b.set(148, 12, T.KOOPA);
+  b.set(8, 9, T.QBLOCK_MUSH);
+  b.set(10, 9, T.QBLOCK_ICE);
+  b.coins(9, 14, 20);
+  b.set(22, 12, T.GOOMBA);
 
-  // Wide chasm (158-164) — needs a full running jump from a ramp.
-  b.stairs(166, 4, b.height - 3, 1);
+  b.pipe(34, 2, true);
+  b.set(40, 12, T.KOOPA);
+  b.set(56, 9, T.QBLOCK_ICE);
+  b.set(58, 9, T.QBLOCK_COIN);
+  b.set(64, 12, T.GOOMBA);
+  b.set(66, 12, T.GOOMBA);
 
-  // Final enemy parade.
-  b.set(172, 12, T.GOOMBA);
-  b.set(174, 12, T.KOOPA);
-  b.set(178, 12, T.GOOMBA);
-  b.set(181, 12, T.KOOPA);
-  b.hline(7, 172, 182, T.BRICK);
-  b.coins(5, 172, 182, 2);
+  b.set(80, 9, T.QBLOCK_STAR);
+  b.coins(9, 84, 90);
+  b.pipe(104, 3, true);
+  b.set(112, 12, T.KOOPA);
+  b.set(114, 12, T.KOOPA);
 
-  // The last big gap (188-196) with stepping stones.
-  b.hline(10, 189, 190, T.HARD);
-  b.hline(8, 192, 193, T.HARD);
-  b.hline(6, 195, 195, T.HARD);
+  b.set(140, 12, T.GOOMBA);
+  b.set(158, 9, T.QBLOCK_1UP);
+  b.coins(9, 162, 168);
 
-  // Grand finale staircase.
-  b.stairs(200, 10, b.height - 3, 1);
-  b.set(206, 12, T.GOOMBA);
+  return { name: "2-1", time: 400, bg: "snow", flagCol: b.flag(176), tiles: b.toRows(), width: w };
+}
 
-  const flagCol = 238;
-  for (let r = 2; r <= b.height - 3; r++) b.set(flagCol, r, T.FLAGPOLE);
-  b.set(flagCol, b.height - 2, T.FLAGBASE);
+// ---------------------------------------------------------------------------
+// World 2-2 — mini-boss arena: the Hammer King.
+// ---------------------------------------------------------------------------
+function miniBoss() {
+  const w = 70;
+  const b = new LevelBuilder(w);
+  b.ground(0, w - 1);
+  b.pit(12, 2);
+  b.pit(22, 2);
+
+  // Stock up before the fight.
+  b.set(5, 9, T.QBLOCK_MUSH);
+  b.set(8, 9, T.QBLOCK_MUSH);
+  b.set(16, 9, T.QBLOCK_MUSH);
+  b.set(28, 9, T.QBLOCK_ICE);
+  b.coins(9, 30, 34);
+  b.set(26, 12, T.GOOMBA);
+
+  // Arena.
+  b.set(48, b.height - 3, T.BOSS);
+  b.set(60, b.height - 3, T.HARD);
+  b.set(60, b.height - 4, T.AXE);
+  for (let r = b.height - 6; r < b.height - 1; r++) b.set(64, r, T.HARD);
 
   return {
-    name: "1-4",
-    time: 400,
-    bg: "dusk",
-    flagCol,
+    name: "2-2",
+    time: 300,
+    bg: "castle",
+    flagCol: w + 5,
+    boss: true,
+    bossType: "mini",
     tiles: b.toRows(),
     width: w,
   };
 }
 
 // ---------------------------------------------------------------------------
-// World 2-1 — the snow plains: a fresh white background and Ice Flowers.
+// World 2-3 — snow, the run-up to the castle.
 // ---------------------------------------------------------------------------
-function world5() {
+function snow2() {
   const w = 188;
   const b = new LevelBuilder(w);
   b.ground(0, w - 1);
+  [24, 46, 70, 95, 120, 146, 166].forEach((c, i) => b.pit(c, i % 2 ? 3 : 2));
 
-  const gaps = [
-    [26, 29],
-    [48, 52],
-    [74, 78],
-    [104, 108],
-    [134, 139],
-    [160, 164],
-  ];
-  for (const [a, c] of gaps) {
-    for (let r = b.height - 2; r < b.height; r++) b.hline(r, a, c, T.EMPTY);
-  }
+  b.set(8, 9, T.QBLOCK_ICE);
+  b.set(10, 9, T.QBLOCK_MUSH);
+  b.coins(9, 14, 20);
+  b.set(22, 12, T.KOOPA);
 
-  // Intro: a mushroom then an Ice Flower so you arrive frosty.
-  b.set(8, 9, T.QBLOCK_MUSH);
-  b.set(11, 9, T.QBLOCK_ICE);
-  b.coins(8, 13, 18);
-  b.set(16, 12, T.GOOMBA);
+  b.pipe(34, 3, true);
+  b.set(42, 12, T.GOOMBA);
+  b.set(44, 12, T.GOOMBA);
+  b.set(58, 9, T.QBLOCK_STAR);
+  b.set(60, 9, T.QBLOCK_COIN);
+  b.set(68, 12, T.KOOPA);
 
-  // Brick island over the first gap.
-  b.hline(8, 25, 30, T.BRICK);
-  b.set(27, 5, T.QBLOCK_ICE);
-  b.coins(6, 26, 29);
+  b.pipe(82, 2, true);
+  b.coins(9, 90, 94);
+  b.set(106, 12, T.GOOMBA);
+  b.set(108, 12, T.GOOMBA);
+  b.set(110, 9, T.QBLOCK_ICE);
+  b.set(112, 9, T.QBLOCK_1UP);
 
-  // Pipes (one with a Piranha) + koopas.
-  b.pipe(36, 10, 3, true);
-  b.set(40, 12, T.KOOPA);
-  b.pipe(44, 11, 2);
+  b.set(138, 12, T.KOOPA);
+  b.pipe(154, 2, true);
+  b.set(160, 12, T.GOOMBA);
+  b.coins(9, 172, 178);
 
-  // Floating platforms across the wide gap.
-  b.hline(9, 47, 48, T.HARD);
-  b.hline(7, 51, 52, T.HARD);
-  b.coins(5, 51, 52);
-  b.set(58, 12, T.GOOMBA);
-  b.set(60, 12, T.GOOMBA);
-
-  // Ceiling brick run with a star.
-  b.hline(5, 64, 72, T.BRICK);
-  b.set(68, 5, T.QBLOCK_STAR);
-  b.coins(11, 64, 72, 2);
-
-  // Stepping stones over the gap.
-  b.hline(9, 75, 77, T.HARD);
-  b.coins(7, 74, 78);
-
-  // Stairs + koopa gauntlet.
-  b.stairs(84, 5, b.height - 3, 1);
-  b.set(88, 7, T.KOOPA);
-  b.set(92, 12, T.KOOPA);
-  b.set(96, 12, T.GOOMBA);
-
-  // Ice Flower refill mid-level.
-  b.set(100, 6, T.QBLOCK_ICE);
-  b.hline(9, 105, 107, T.HARD);
-  b.coins(7, 104, 108);
-
-  // Pipe valley with piranhas.
-  b.pipe(114, 10, 3, true);
-  b.set(118, 12, T.GOOMBA);
-  b.pipe(122, 10, 3, true);
-
-  // Question trio.
-  b.set(128, 6, T.QBLOCK_COIN);
-  b.set(130, 6, T.QBLOCK_MUSH);
-  b.set(132, 6, T.QBLOCK_COIN);
-
-  // Big gap with mid platform.
-  b.hline(9, 135, 138, T.HARD);
-  b.coins(7, 134, 139);
-
-  // Enemy parade.
-  b.set(146, 12, T.KOOPA);
-  b.set(149, 12, T.GOOMBA);
-  b.set(152, 12, T.KOOPA);
-
-  // Final stairs + last gap stones.
-  b.stairs(166, 7, b.height - 3, 1);
-  b.hline(10, 161, 162, T.HARD);
-
-  const flagCol = 180;
-  for (let r = 3; r <= b.height - 3; r++) b.set(flagCol, r, T.FLAGPOLE);
-  b.set(flagCol, b.height - 2, T.FLAGBASE);
-
-  return {
-    name: "2-1",
-    time: 400,
-    bg: "snow",
-    flagCol,
-    tiles: b.toRows(),
-    width: w,
-  };
+  return { name: "2-3", time: 400, bg: "snow", flagCol: b.flag(180), tiles: b.toRows(), width: w };
 }
 
 // ---------------------------------------------------------------------------
-// World 2-castle — Bowser's lair. Lava pits, then the boss fight + axe.
+// World 2-castle — the final, two-phase Bowser battle.
 // ---------------------------------------------------------------------------
-function world6() {
+function finalBoss() {
   const w = 78;
   const b = new LevelBuilder(w);
   b.ground(0, w - 1);
+  b.pit(12, 2);
+  b.pit(20, 2);
+  b.pit(30, 3);
 
-  // Lava pits on the approach.
-  const gaps = [
-    [11, 13],
-    [19, 22],
-    [30, 33],
-  ];
-  for (const [a, c] of gaps) {
-    for (let r = b.height - 2; r < b.height; r++) b.hline(r, a, c, T.EMPTY);
-  }
-
-  // Guaranteed firepower: two mushroom blocks so a small Mario can reach Fire
-  // (and bricks to break for big Mario).
+  // Guaranteed firepower before the fight.
   b.set(5, 9, T.QBLOCK_MUSH);
   b.set(8, 9, T.QBLOCK_MUSH);
-  b.set(15, 6, T.QBLOCK_ICE);
-  b.hline(8, 24, 28, T.BRICK);
-  b.set(26, 5, T.QBLOCK_1UP);
-  b.coins(7, 24, 28);
-
-  // A couple of enemies + a Piranha pipe guarding the gate.
+  b.set(16, 6, T.QBLOCK_MUSH);
+  b.set(24, 9, T.QBLOCK_ICE);
+  b.set(26, 9, T.QBLOCK_1UP);
+  b.coins(9, 36, 40);
   b.set(26, 12, T.GOOMBA);
-  b.pipe(36, 10, 3, true);
+  b.pipe(38, 3, true);
 
-  // ---- The arena (flat floor, no pits) ----
-  // Decorative low wall framing the arena entrance.
-  b.set(42, b.height - 3, T.HARD);
-  b.set(42, b.height - 4, T.HARD);
-
-  // Bowser patrols the middle; the axe sits on the far ledge.
+  // Arena.
   b.set(55, b.height - 3, T.BOSS);
-
-  // Axe on a small pedestal at the far right.
   b.set(66, b.height - 3, T.HARD);
   b.set(66, b.height - 4, T.AXE);
-
-  // Sealing wall so you fight rather than run off the end.
   for (let r = b.height - 7; r < b.height - 1; r++) b.set(70, r, T.HARD);
-
-  // No reachable flagpole — the level ends when Bowser is defeated.
-  const flagCol = w + 5;
 
   return {
     name: "2-castle",
     time: 400,
     bg: "castle",
-    flagCol,
+    flagCol: w + 5,
     boss: true,
+    bossType: "bowser",
     tiles: b.toRows(),
     width: w,
   };
 }
 
-export const LEVELS = [world1(), world2(), world3(), world4(), world5(), world6()];
+export const LEVELS = [
+  world1(),
+  world2(),
+  world3(),
+  world4(),
+  snow1(),
+  miniBoss(),
+  snow2(),
+  finalBoss(),
+];

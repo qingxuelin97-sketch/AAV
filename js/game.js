@@ -47,6 +47,29 @@ class CoinPop {
   }
 }
 
+const BOSS_PRESETS = {
+  mini: {
+    name: "锤子龟王",
+    tint: "#4aa3ff",
+    hp: 3,
+    phases: 1,
+    speed: 95,
+    fireInterval: 1.5,
+    jumpInterval: 1.7,
+    arc: true,
+    spread: 1,
+  },
+  bowser: {
+    name: "库巴",
+    hp: 5,
+    phases: 2,
+    speed: 85,
+    fireInterval: 1.5,
+    jumpInterval: 2.0,
+    spread: 1,
+  },
+};
+
 const ENEMY = (e) => e instanceof Goomba || e instanceof Koopa;
 const ITEM = (e) =>
   e instanceof Mushroom || e instanceof FireFlower || e instanceof IceFlower || e instanceof Star;
@@ -75,14 +98,32 @@ export class Game {
     this.lives = 3;
     this.levelIndex = 0;
     this._carryPower = "small";
+    this.reserve = "mushroom";
     this.elapsedMs = 0;
+  }
+
+  // Deploy the reserved power-up as a collectible the player can grab.
+  useReserve() {
+    if (!this.reserve || !this.player?.alive) return;
+    const x = this.player.cx - 13;
+    const y = this.player.y - TILE;
+    if (this.reserve === "fire") this.entities.push(new FireFlower(x, y));
+    else if (this.reserve === "ice") this.entities.push(new IceFlower(x, y));
+    else this.entities.push(new Mushroom(x, y, false));
+    this.reserve = null;
+    this.audio.pipe();
   }
 
   // ---- lifecycle ---------------------------------------------------------
   start() {
+    this.startAt(0);
+  }
+
+  // Begin a run from a chosen level (used by the level-select menu).
+  startAt(index) {
     this.reset();
     this.audio.unlock();
-    this.loadLevel(0);
+    this.loadLevel(index);
     this.state = STATE.PLAYING;
     this.playTheme();
     this.emitHud();
@@ -118,7 +159,8 @@ export class Game {
           this.entities.push(new PiranhaPlant(col, row + 1));
           this.world.setTile(col, row, T.EMPTY);
         } else if (ch === T.BOSS) {
-          this.boss = new Bowser(col, row);
+          const preset = BOSS_PRESETS[def.bossType] || BOSS_PRESETS.bowser;
+          this.boss = new Bowser(col, row, preset);
           this.entities.push(this.boss);
           this.world.setTile(col, row, T.EMPTY);
         } else if (ch === T.AXE) {
@@ -147,6 +189,9 @@ export class Game {
     this.player = new Player(startCol * TILE, (startRow - 1) * TILE);
     if (this._carryPower && this._carryPower !== "small") this.player.setPower(this._carryPower);
 
+    // Every level starts with a Mushroom in the reserve box (press C to deploy).
+    this.reserve = this.reserve || "mushroom";
+
     this.cam.x = 0;
     this.clearPhase = null;
     this.flagClothY = 3 * TILE;
@@ -163,6 +208,7 @@ export class Game {
 
   nextLevel() {
     this._carryPower = this.player.power;
+    this.hooks.onLevelComplete?.(this.levelIndex);
     if (this.levelIndex + 1 >= LEVELS.length) {
       this.win();
     } else {
@@ -177,6 +223,7 @@ export class Game {
     this.state = STATE.WIN;
     this.audio.stopTheme();
     this.audio.levelClear();
+    this.hooks.onLevelComplete?.(this.levelIndex);
     this.hooks.onWin?.(this.stats());
   }
 
@@ -237,16 +284,17 @@ export class Game {
   spawnBossFire(boss, player) {
     const x = boss.facing < 0 ? boss.x - 16 : boss.x + boss.w;
     const y = boss.y + 20;
-    let vx = boss.facing < 0 ? -240 : 240;
-    let vy = -60;
-    if (player) {
-      // Aim roughly at the player.
-      const dx = player.cx - x;
-      vx = Math.sign(dx) * 240;
-      vy = -80;
+    const dir = player ? Math.sign(player.cx - x) || -1 : boss.facing;
+    const base = 240;
+    const n = boss.spread || 1;
+    for (let i = 0; i < n; i++) {
+      // Fan the volley out a little when there are several projectiles.
+      const spreadV = boss.arc ? -260 - i * 40 : -60 - (i - (n - 1) / 2) * 70;
+      const vx = dir * (base + (boss.arc ? i * 20 : 0));
+      this.bossFireballs.push(new BossFireball(x, y, vx, spreadV, boss.arc));
     }
-    this.bossFireballs.push(new BossFireball(x, y, vx, vy));
-    this.audio.bossFire();
+    if (boss.arc) this.audio.bump();
+    else this.audio.bossFire();
   }
 
   popText(worldX, worldY, text, color) {
@@ -312,6 +360,8 @@ export class Game {
       this.killPlayer();
       return;
     }
+
+    if (this.input.consume("item")) this.useReserve();
 
     const world = this.world;
     this.player.update(dt, this.input, world, this);
@@ -586,15 +636,18 @@ export class Game {
         this.popText(e.cx, e.y, "1UP", "#5fe06b");
       } else if (e instanceof Mushroom) {
         if (p.power === "small") p.setPower("big");
+        else if (!this.reserve) this.reserve = "mushroom"; // stash spare
         this.audio.powerup();
         this.addScore(1000);
         this.popText(e.cx, e.y, "1000", "#fff");
       } else if (e instanceof FireFlower) {
+        if (p.power === "fire" && !this.reserve) this.reserve = "fire";
         p.setPower("fire");
         this.audio.powerup();
         this.addScore(1000);
         this.popText(e.cx, e.y, "1000", "#ff8a3a");
       } else if (e instanceof IceFlower) {
+        if (p.power === "ice" && !this.reserve) this.reserve = "ice";
         p.setPower("ice");
         this.audio.powerup();
         this.addScore(1000);
@@ -764,21 +817,23 @@ export class Game {
   }
 
   drawBossBar(ctx) {
-    const w = 280;
+    const boss = this.boss;
+    const w = 300;
     const x = (VIEW_W - w) / 2;
-    const y = 18;
+    const y = 16;
     ctx.save();
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.fillRect(x - 10, y - 6, w + 20, 34);
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillRect(x - 10, y - 6, w + 20, 38);
+    ctx.fillStyle = boss.enraged ? "#ff6a6a" : "#fff";
     ctx.font = "10px 'Press Start 2P', monospace";
     ctx.textAlign = "center";
-    ctx.fillText("BOWSER", VIEW_W / 2, y + 6);
-    const hpMax = 5;
+    const phaseTag = boss.maxPhase > 1 ? `  [${boss.phase}/${boss.maxPhase}]` : "";
+    ctx.fillText(boss.name + phaseTag, VIEW_W / 2, y + 6);
+    const hpMax = boss.hpPerPhase;
     const pw = w / hpMax;
     for (let i = 0; i < hpMax; i++) {
-      ctx.fillStyle = i < this.boss.hp ? "#ff3b3b" : "#3a2030";
-      ctx.fillRect(x + i * pw + 2, y + 12, pw - 4, 10);
+      ctx.fillStyle = i < boss.hp ? (boss.enraged ? "#ff7a2a" : "#ff3b3b") : "#3a2030";
+      ctx.fillRect(x + i * pw + 2, y + 14, pw - 4, 10);
     }
     ctx.restore();
   }
@@ -806,6 +861,7 @@ export class Game {
       lives: Math.max(0, this.lives),
       power: this.player?.power ?? "small",
       star: (this.player?.starTime ?? 0) > 0,
+      reserve: this.reserve ?? null,
     });
   }
 

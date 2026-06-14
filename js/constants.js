@@ -81,6 +81,7 @@ export const QBLOCKS = new Set([
 
 export const STATE = {
   TITLE: "title",
+  SELECT: "select",
   PLAYING: "playing",
   PAUSED: "paused",
   DYING: "dying",
