@@ -11,27 +11,32 @@ the Web Audio API, so the whole thing is self-contained.
 ## Features
 
 ### Gameplay
-- **The real Super Mario Bros. overworld theme** 🎵 — the iconic Koji Kondo
-  melody, bassline and percussion, sequenced live with the Web Audio API
-  (speeds up during star power, with full level-clear / game-over / death
-  jingles). No audio files.
+- **Two live-sequenced soundtracks** 🎵 — the iconic Super Mario Bros.
+  overworld theme (melody + bass + percussion, sped up during star power) and a
+  dark, driving **boss theme** for the Bowser fight, plus full
+  level-clear / game-over / death / flagpole / boss-defeat jingles. All
+  synthesized with the Web Audio API — no audio files.
 - **Snappy platforming physics** — acceleration/friction, run vs. walk speeds,
   variable jump height, skid turns, faster run-jumps, plus *coyote time* and
   *jump buffering* for a forgiving, modern feel.
-- **4 hand-designed worlds** (1-1 … 1-4) of increasing difficulty with day,
-  dusk and night themes, each ending in a flagpole, fireworks and a castle.
-- **Power-ups** — Super Mushroom (grow), **Fire Flower** (throw bouncing
-  fireballs with `X`), **Super Star** (rainbow invincibility that blasts
-  through enemies), and 1-Up Mushroom.
+- **6 hand-designed levels** across day, dusk, night, **snow** and **castle**
+  themes (with falling snow and bubbling lava), each ending in a flagpole +
+  fireworks — and a final **Bowser boss battle**.
+- **🐢 Bowser boss fight** — a patrolling, jumping, fire-breathing boss with a
+  health bar. Hit him 5 times with projectiles, or reach the bridge **axe** to
+  drop him (classic). Stomping doesn't work — he's spiky!
+- **Power-ups** — Super Mushroom (grow), **Fire Flower** (bouncing fireballs),
+  **Ice Flower** (iceballs that freeze enemies into shatterable blocks),
+  **Super Star** (rainbow invincibility), and 1-Up Mushroom.
 - **Enemies** — Goombas, Koopa Troopas with full shell mechanics (stomp → kick
   → spinning shell combos), and **Piranha Plants** that rise from pipes and duck
   when you stand near.
-- **Interactive blocks** — `?` blocks (coins / mushroom→fire / star / 1-up),
-  breakable bricks (when big/fire) with flying debris, animated coins.
-- **Scoring** — stomps, shell kicks, fireball kills, coins, bricks, flag-height
-  bonus and a remaining-time tally. Every 100 coins grants a 1-Up.
+- **Interactive blocks** — `?` blocks (coins / mushroom→fire / ice / star /
+  1-up), breakable bricks (when powered up) with flying debris, animated coins.
+- **Scoring** — stomps, shell kicks, projectile kills, coins, bricks,
+  flag-height bonus, boss bonus and a remaining-time tally. 100 coins = 1-Up.
 - **Lives, timer, pause, mute**, pit/time-out deaths, level transitions and a
-  win screen after clearing all worlds.
+  win screen after beating Bowser.
 
 ### Presentation
 - Parallax skies, hills and clouds; a procedurally drawn moon and stars at night.
@@ -49,7 +54,7 @@ the Web Audio API, so the whole thing is self-contained.
 | --- | --- |
 | Move | `←` `→` / `A` `D` |
 | Jump | `Z` / `Space` / `↑` / `W` |
-| Run / Throw fireball | `X` / `Shift` |
+| Run / Throw fire-or-iceball | `X` / `Shift` |
 | Pause | `P` |
 | Mute | `M` |
 

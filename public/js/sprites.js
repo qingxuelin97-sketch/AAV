@@ -52,7 +52,12 @@ export function drawMario(ctx, box, opts = {}) {
     cap = PAL.white;
     overall = PAL.white;
     shirt = PAL.red;
+  } else if (power === "ice") {
+    cap = "#7ec8ff";
+    overall = PAL.white;
+    shirt = "#7ec8ff";
   }
+  const flowerForm = power === "fire" || power === "ice";
   if (star) {
     const k = Math.floor(performance.now() / 80) % 4;
     const cycle = ["#ff3b3b", "#ffd23f", "#5fe06b", "#5aa9ff"][k];
@@ -68,7 +73,7 @@ export function drawMario(ctx, box, opts = {}) {
   fr(ctx, box, 0.18, 0.10, 0.16, 0.03, cap, flip); // cap back
   fr(ctx, box, 0.55, 0.10, 0.34, 0.05, cap, flip); // cap brim (front)
   // "M" emblem circle on the cap front
-  fr(ctx, box, 0.60, 0.045, 0.14, 0.05, power === "fire" || star ? PAL.red : PAL.white, flip);
+  fr(ctx, box, 0.60, 0.045, 0.14, 0.05, flowerForm || star ? PAL.red : PAL.white, flip);
   fr(ctx, box, 0.15, 0.11, 0.16, 0.18, PAL.brown, flip); // hair back
   fr(ctx, box, 0.30, 0.13, 0.46, 0.18, PAL.skin, flip); // face
   fr(ctx, box, 0.28, 0.13, 0.07, 0.18, PAL.brown, flip); // sideburn
@@ -267,24 +272,112 @@ export function drawStar(ctx, box, t = 0) {
   ctx.restore();
 }
 
-export function drawFireball(ctx, box, t = 0) {
+export function drawIceFlower(ctx, box) {
+  fr(ctx, box, 0.44, 0.55, 0.12, 0.45, "#2e9c2e");
+  fr(ctx, box, 0.22, 0.6, 0.2, 0.1, "#2e9c2e");
+  fr(ctx, box, 0.58, 0.6, 0.2, 0.1, "#2e9c2e");
+  fr(ctx, box, 0.3, 0.08, 0.4, 0.12, "#7ec8ff");
+  fr(ctx, box, 0.18, 0.2, 0.64, 0.12, "#aee4ff");
+  fr(ctx, box, 0.18, 0.4, 0.64, 0.12, "#aee4ff");
+  fr(ctx, box, 0.3, 0.5, 0.4, 0.1, "#7ec8ff");
+  fr(ctx, box, 0.32, 0.22, 0.36, 0.26, "#e8f7ff");
+  fr(ctx, box, 0.4, 0.28, 0.06, 0.08, PAL.black);
+  fr(ctx, box, 0.56, 0.28, 0.06, 0.08, PAL.black);
+}
+
+export function drawFireball(ctx, box, t = 0, type = "fire") {
   const { x, y, w, h } = box;
   const cx = x + w / 2;
   const cy = y + h / 2;
   const r = Math.min(w, h) / 2;
-  const spin = t * 12;
   ctx.save();
   ctx.translate(cx, cy);
-  ctx.rotate(spin);
-  ctx.fillStyle = "#ff6a00";
+  ctx.rotate(t * 12);
+  ctx.fillStyle = type === "ice" ? "#3aa6ff" : "#ff6a00";
   ctx.beginPath();
   ctx.arc(0, 0, r, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "#ffe000";
+  ctx.fillStyle = type === "ice" ? "#dff3ff" : "#ffe000";
   ctx.beginPath();
   ctx.arc(0, 0, r * 0.55, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
+}
+
+// Ice block overlay drawn over a frozen enemy.
+export function drawFrozenOverlay(ctx, box) {
+  const { x, y, w, h } = box;
+  ctx.save();
+  ctx.fillStyle = "rgba(150, 220, 255, 0.45)";
+  ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+  ctx.strokeStyle = "rgba(255,255,255,0.8)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x - 2, y - 2, w + 4, h + 4);
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  ctx.fillRect(x + 2, y + 2, 3, h - 6);
+  ctx.fillRect(x + w - 5, y + 4, 2, h - 8);
+  ctx.restore();
+}
+
+// The bridge axe — touch to defeat the boss.
+export function drawAxe(ctx, box) {
+  const { x, y, w, h } = box;
+  ctx.fillStyle = "#6b4a2a";
+  ctx.fillRect(x + w * 0.45, y + h * 0.3, w * 0.1, h * 0.7); // handle
+  ctx.fillStyle = "#d6d6d6";
+  ctx.beginPath();
+  ctx.moveTo(x + w * 0.5, y + h * 0.05);
+  ctx.lineTo(x + w * 0.95, y + h * 0.3);
+  ctx.lineTo(x + w * 0.5, y + h * 0.45);
+  ctx.lineTo(x + w * 0.05, y + h * 0.3);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#8a8a8a";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+// Bowser — the big spiky boss.
+export function drawBowser(ctx, box, opts = {}) {
+  const { facing = -1, walkFrame = 0, hurt = false, dead = false } = opts;
+  const flip = facing > 0;
+  if (hurt && Math.floor(performance.now() / 60) % 2 === 0) ctx.globalAlpha = 0.5;
+  if (dead) {
+    ctx.save();
+    ctx.translate(box.x + box.w / 2, box.y + box.h / 2);
+    ctx.rotate(Math.PI);
+    box = { x: -box.w / 2, y: -box.h / 2, w: box.w, h: box.h };
+  }
+
+  // tail
+  fr(ctx, box, 0.0, 0.55, 0.16, 0.12, "#3aa14b", flip);
+  // legs
+  fr(ctx, box, 0.2, 0.82, 0.18, 0.18, "#e0b84a", flip);
+  fr(ctx, box, 0.55, 0.82, 0.18, 0.18, "#e0b84a", flip);
+  fr(ctx, box, 0.2, 0.95, 0.2, 0.05, "#caa23a", flip); // claws
+  fr(ctx, box, 0.55, 0.95, 0.2, 0.05, "#caa23a", flip);
+  // shell (green) with spikes
+  fr(ctx, box, 0.12, 0.42, 0.62, 0.42, "#2e8b3a", flip);
+  fr(ctx, box, 0.18, 0.46, 0.5, 0.3, "#8fe07a", flip);
+  for (let i = 0; i < 4; i++) {
+    fr(ctx, box, 0.16 + i * 0.15, 0.36, 0.08, 0.1, "#f4f0d8", flip); // back spikes
+  }
+  // belly
+  fr(ctx, box, 0.55, 0.5, 0.3, 0.34, "#ffe9a8", flip);
+  // arms
+  fr(ctx, box, 0.66, 0.5, 0.16, 0.2, "#e0b84a", flip);
+  // head
+  fr(ctx, box, 0.6, 0.16, 0.34, 0.3, "#e0b84a", flip);
+  fr(ctx, box, 0.62, 0.1, 0.3, 0.12, "#b03a2a", flip); // red hair
+  fr(ctx, box, 0.6, 0.06, 0.08, 0.1, "#f4f0d8", flip); // horn
+  fr(ctx, box, 0.86, 0.06, 0.08, 0.1, "#f4f0d8", flip); // horn
+  fr(ctx, box, 0.82, 0.22, 0.06, 0.07, PAL.black, flip); // eye
+  fr(ctx, box, 0.74, 0.38, 0.22, 0.06, "#f4f0d8", flip); // teeth
+  // walking foot shuffle
+  if (walkFrame) fr(ctx, box, 0.2, 0.9, 0.18, 0.05, "#caa23a", flip);
+
+  ctx.globalAlpha = 1;
+  if (dead) ctx.restore();
 }
 
 export function drawCoin(ctx, box, t = 0) {

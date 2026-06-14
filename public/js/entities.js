@@ -20,6 +20,8 @@ import {
   STOMP_BOUNCE,
   FIREBALL_SPEED,
   FIREBALL_BOUNCE,
+  FREEZE_TIME,
+  BOSS_HP,
 } from "./constants.js";
 import * as Sprites from "./sprites.js";
 
@@ -309,10 +311,28 @@ export class Goomba extends Body {
     this.vx = 70 * dir;
     game.audio.kick();
   }
+  freeze(game) {
+    if (this.state === "squashed" || this.state === "flipped") return;
+    this.state = "frozen";
+    this.freezeTimer = FREEZE_TIME;
+    this.vx = 0;
+    game.audio.freeze();
+  }
   update(dt, world) {
     if (this.state === "squashed") {
       this.squashTime -= dt;
       if (this.squashTime <= 0) this.dead = true;
+      return;
+    }
+    if (this.state === "frozen") {
+      this.freezeTimer -= dt;
+      this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt);
+      this.y += this.vy * dt;
+      collideY(this, world);
+      if (this.freezeTimer <= 0) {
+        this.state = "walk";
+        this.vx = -ENEMY_SPEED;
+      }
       return;
     }
     if (this.state === "flipped") {
@@ -340,11 +360,12 @@ export class Goomba extends Body {
     }
   }
   draw(ctx) {
-    Sprites.drawGoomba(
-      ctx,
-      { x: this.x, y: this.y, w: this.w, h: this.h },
-      { walkFrame: this.walkFrame, squashed: this.state === "squashed" }
-    );
+    const box = { x: this.x, y: this.y, w: this.w, h: this.h };
+    Sprites.drawGoomba(ctx, box, {
+      walkFrame: this.walkFrame,
+      squashed: this.state === "squashed",
+    });
+    if (this.state === "frozen") Sprites.drawFrozenOverlay(ctx, box);
   }
 }
 
@@ -385,12 +406,35 @@ export class Koopa extends Body {
     this.vx = 70 * dir;
     game.audio.kick();
   }
+  freeze(game) {
+    if (this.state === "flipped") return;
+    if (this.state === "shell" || this.state === "spin") {
+      this.state = "walk";
+      this.h = 40;
+      this.y -= 14;
+    }
+    this.state = "frozen";
+    this.freezeTimer = FREEZE_TIME;
+    this.vx = 0;
+    game.audio.freeze();
+  }
   update(dt, world) {
     if (this.state === "flipped") {
       this.vy += GRAVITY * dt;
       this.x += this.vx * dt;
       this.y += this.vy * dt;
       if (this.y > world.pixelHeight + 100) this.dead = true;
+      return;
+    }
+    if (this.state === "frozen") {
+      this.freezeTimer -= dt;
+      this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt);
+      this.y += this.vy * dt;
+      collideY(this, world);
+      if (this.freezeTimer <= 0) {
+        this.state = "walk";
+        this.vx = -ENEMY_SPEED;
+      }
       return;
     }
     if (this.state === "shell") {
@@ -421,16 +465,14 @@ export class Koopa extends Body {
     }
   }
   draw(ctx) {
-    Sprites.drawKoopa(
-      ctx,
-      { x: this.x, y: this.y, w: this.w, h: this.h },
-      {
-        walkFrame: this.walkFrame,
-        facing: this.facing,
-        shell: this.state === "shell" || this.state === "spin",
-        spinning: this.state === "spin",
-      }
-    );
+    const box = { x: this.x, y: this.y, w: this.w, h: this.h };
+    Sprites.drawKoopa(ctx, box, {
+      walkFrame: this.walkFrame,
+      facing: this.facing,
+      shell: this.state === "shell" || this.state === "spin",
+      spinning: this.state === "spin",
+    });
+    if (this.state === "frozen") Sprites.drawFrozenOverlay(ctx, box);
   }
 }
 
@@ -545,10 +587,29 @@ export class FireFlower extends Body {
       this.y -= rise;
       this.emerging -= rise;
     }
-    // Fire flower stays put once emerged.
   }
   draw(ctx) {
     Sprites.drawFireFlower(ctx, { x: this.x, y: this.y, w: this.w, h: this.h });
+  }
+}
+
+export class IceFlower extends Body {
+  constructor(x, y) {
+    super(x, y, 26, 26);
+    this.kind = "iceflower";
+    this.emerging = TILE;
+    this.t = 0;
+  }
+  update(dt) {
+    this.t += dt;
+    if (this.emerging > 0) {
+      const rise = 44 * dt;
+      this.y -= rise;
+      this.emerging -= rise;
+    }
+  }
+  draw(ctx) {
+    Sprites.drawIceFlower(ctx, { x: this.x, y: this.y, w: this.w, h: this.h });
   }
 }
 
@@ -585,12 +646,13 @@ export class Star extends Body {
 }
 
 // --------------------------------------------------------------------------
-// Fireball thrown by fire Mario.
+// Projectile thrown by fire/ice Mario.
 // --------------------------------------------------------------------------
 export class Fireball extends Body {
-  constructor(x, y, dir) {
+  constructor(x, y, dir, type = "fire") {
     super(x, y, 14, 14);
     this.kind = "fireball";
+    this.type = type; // "fire" | "ice"
     this.vx = FIREBALL_SPEED * dir;
     this.vy = 120;
     this.life = 2.5;
@@ -609,7 +671,132 @@ export class Fireball extends Body {
     if (this.y > world.pixelHeight + 100) this.dead = true;
   }
   draw(ctx) {
-    Sprites.drawFireball(ctx, { x: this.x, y: this.y, w: this.w, h: this.h }, this.t);
+    Sprites.drawFireball(ctx, { x: this.x, y: this.y, w: this.w, h: this.h }, this.t, this.type);
+  }
+}
+
+// --------------------------------------------------------------------------
+// Bowser — the boss. Patrols, jumps, breathes fire, and takes several hits.
+// --------------------------------------------------------------------------
+export class Bowser extends Body {
+  constructor(col, row) {
+    super(col * TILE, (row + 1) * TILE - 64, 56, 64);
+    this.kind = "boss";
+    this.hp = BOSS_HP;
+    this.facing = -1;
+    this.vx = -75;
+    this.minX = Math.max(TILE, (col - 5) * TILE);
+    this.maxX = (col + 2) * TILE;
+    this.walkTimer = 0;
+    this.walkFrame = 0;
+    this.jumpTimer = 2.2;
+    this.fireTimer = 1.6;
+    this.invuln = 0;
+    this.state = "alive"; // alive | dead
+    this.deadTimer = 0;
+  }
+  hit(game) {
+    if (this.state !== "alive" || this.invuln > 0) return false;
+    this.hp -= 1;
+    this.invuln = 1.0;
+    game.audio.bossHit();
+    if (this.hp <= 0) {
+      this.state = "dead";
+      this.vx = 0;
+      this.vy = -220;
+    }
+    return true;
+  }
+  update(dt, world, player, game) {
+    if (this.invuln > 0) this.invuln -= dt;
+    if (this.state === "dead") {
+      this.vy += GRAVITY * dt;
+      this.y += this.vy * dt;
+      this.deadTimer += dt;
+      return;
+    }
+    if (player) this.facing = player.cx < this.cx ? -1 : 1;
+
+    this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt);
+    this.x += this.vx * dt;
+    if (this.x < this.minX) {
+      this.x = this.minX;
+      this.vx = Math.abs(this.vx);
+    } else if (this.x > this.maxX) {
+      this.x = this.maxX;
+      this.vx = -Math.abs(this.vx);
+    }
+    this.y += this.vy * dt;
+    collideY(this, world);
+
+    this.jumpTimer -= dt;
+    if (this.jumpTimer <= 0 && this.onGround) {
+      this.vy = -560;
+      this.jumpTimer = 2.2 + Math.random();
+      game.audio.bossRoar();
+    }
+    this.fireTimer -= dt;
+    if (this.fireTimer <= 0) {
+      this.fireTimer = 1.7 + Math.random() * 0.8;
+      game.spawnBossFire(this, player);
+    }
+    this.walkTimer += dt;
+    if (this.walkTimer > 0.2) {
+      this.walkTimer = 0;
+      this.walkFrame ^= 1;
+    }
+  }
+  draw(ctx) {
+    Sprites.drawBowser(
+      ctx,
+      { x: this.x, y: this.y, w: this.w, h: this.h },
+      {
+        facing: this.facing,
+        walkFrame: this.walkFrame,
+        hurt: this.invuln > 0,
+        dead: this.state === "dead",
+      }
+    );
+  }
+}
+
+// Bowser's fire breath.
+export class BossFireball extends Body {
+  constructor(x, y, vx, vy) {
+    super(x, y, 20, 16);
+    this.kind = "bossfire";
+    this.vx = vx;
+    this.vy = vy;
+    this.life = 4;
+    this.t = 0;
+  }
+  update(dt, world) {
+    this.t += dt;
+    this.life -= dt;
+    if (this.life <= 0) this.dead = true;
+    this.vy += GRAVITY * 0.18 * dt;
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+    if (world.isSolid(Math.floor(this.cx / TILE), Math.floor(this.cy / TILE))) this.dead = true;
+    if (this.y > world.pixelHeight + 100 || this.x < -60) this.dead = true;
+  }
+  draw(ctx) {
+    Sprites.drawFireball(ctx, { x: this.x, y: this.y, w: this.w, h: this.h }, this.t, "fire");
+  }
+}
+
+// The bridge axe — touch to instantly defeat the boss.
+export class Axe extends Body {
+  constructor(col, row) {
+    super(col * TILE + 4, row * TILE, 24, 28);
+    this.kind = "axe";
+    this.t = 0;
+  }
+  update(dt) {
+    this.t += dt;
+  }
+  draw(ctx) {
+    Sprites.drawAxe(ctx, { x: this.x, y: this.y, w: this.w, h: this.h });
   }
 }
 

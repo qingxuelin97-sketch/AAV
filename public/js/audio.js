@@ -1,8 +1,7 @@
 // Procedural audio: faithful chiptune rendition of the Super Mario Bros.
-// overworld theme (melody + bass + light percussion) plus all the sound
-// effects — every sound is synthesized, no audio files required.
+// overworld theme plus a dark boss theme, and all sound effects — every sound
+// is synthesized, so the game ships with zero audio files.
 
-// Convert a note name like "C4", "A#4", "Bb5" to a frequency in Hz.
 function noteToFreq(name) {
   if (!name) return 0;
   const m = /^([A-G])(#|b)?(\d)$/.exec(name);
@@ -14,7 +13,6 @@ function noteToFreq(name) {
 }
 
 // ---- Super Mario Bros. overworld theme (one step = one 16th note) ---------
-// "_" is a rest / sustain gap. Transposed to a comfortable octave.
 // prettier-ignore
 const THEME_MELODY = [
   "E5","E5","_","E5", "_","C5","E5","_", "G5","_","_","_", "G4","_","_","_",
@@ -22,7 +20,6 @@ const THEME_MELODY = [
   "G4","E5","G5","A5", "_","F5","G5","_", "E5","_","C5","D5", "B4","_","_","_",
   "C5","_","_","G4", "_","_","E4","_", "_","A4","_","B4", "_","A#4","A4","_",
   "G4","E5","G5","A5", "_","F5","G5","_", "E5","_","C5","D5", "B4","_","_","_",
-  // ---- B section ----
   "_","_","G5","F#5", "F5","D#5","_","E5", "_","G#4","A4","C5", "_","A4","C5","D5",
   "_","_","G5","F#5", "F5","D#5","_","E5", "_","C6","_","C6", "C6","_","_","_",
   "_","_","G5","F#5", "F5","D#5","_","E5", "_","G#4","A4","C5", "_","A4","C5","D5",
@@ -41,6 +38,27 @@ const THEME_BASS = [
   "G2","_","G2","_", "G2","_","G2","_", "C3","_","C3","_", "C3","_","C3","_",
 ];
 
+// ---- Dark, driving boss theme (D minor, menacing ostinato) -----------------
+// prettier-ignore
+const BOSS_MELODY = [
+  "D4","_","D4","D4", "F4","_","D4","_", "G#4","_","A4","_", "D4","_","C#4","_",
+  "D4","_","D4","D4", "F4","_","E4","_", "C5","_","B4","A#4", "A4","_","_","_",
+  "A4","_","A4","A4", "C5","_","A4","_", "D#5","_","D5","_", "A4","_","G#4","_",
+  "D5","_","C5","B4", "A#4","_","A4","_", "F4","_","E4","_", "D4","_","_","_",
+];
+// prettier-ignore
+const BOSS_BASS = [
+  "D2","D2","D2","D2", "D2","D2","D2","D2", "Eb2","Eb2","Eb2","Eb2", "D2","D2","D2","D2",
+  "D2","D2","D2","D2", "D2","D2","D2","D2", "A1","A1","A1","A1", "A1","A1","A1","A1",
+  "F2","F2","F2","F2", "F2","F2","F2","F2", "Eb2","Eb2","Eb2","Eb2", "D2","D2","D2","D2",
+  "A1","A1","A1","A1", "A1","A1","A1","A1", "D2","D2","D2","D2", "D2","D2","D2","D2",
+];
+
+const TRACKS = {
+  overworld: { melody: THEME_MELODY, bass: THEME_BASS, step: 0.108, type: "square", boss: false },
+  boss: { melody: BOSS_MELODY, bass: BOSS_BASS, step: 0.1, type: "sawtooth", boss: true },
+};
+
 export class AudioEngine {
   constructor() {
     this.ctx = null;
@@ -52,8 +70,9 @@ export class AudioEngine {
     this._step = 0;
     this._nextTime = 0;
     this._playing = false;
-    this.fast = false; // sped-up theme during star power
-    this.stepDur = 0.108;
+    this.fast = false;
+    this.trackName = "overworld";
+    this.track = TRACKS.overworld;
   }
 
   _ensure() {
@@ -85,7 +104,6 @@ export class AudioEngine {
     return this.muted;
   }
 
-  // ---- generic one-shot tone (for SFX) ------------------------------------
   _tone(freq, dur, type = "square", vol = 0.3, when = 0, slideTo = null) {
     if (!this.ctx || this.muted) return;
     const t0 = this.ctx.currentTime + when;
@@ -123,6 +141,8 @@ export class AudioEngine {
   break_() { this._noise(0.12, 0.25); this._tone(260, 0.08, "sawtooth", 0.2); }
   pipe() { this._tone(300, 0.3, "square", 0.25, 0, 80); }
   fireball() { this._tone(700, 0.12, "square", 0.2, 0, 220); }
+  iceball() { this._tone(1200, 0.12, "sine", 0.2, 0, 500); this._tone(1600, 0.1, "triangle", 0.12, 0.02); }
+  freeze() { this._tone(900, 0.18, "sine", 0.18, 0, 200); }
   kick() { this._tone(420, 0.1, "square", 0.25, 0, 180); }
 
   coin() {
@@ -149,7 +169,6 @@ export class AudioEngine {
     for (const [f, t] of seq) this._tone(f, 0.2, "square", 0.3, t);
   }
   flagpole() {
-    // Descending arpeggio as Mario slides down the pole.
     const notes = [1047, 988, 880, 784, 698, 659, 587, 523, 440, 392];
     notes.forEach((n, i) => this._tone(n, 0.12, "square", 0.28, i * 0.07));
   }
@@ -169,12 +188,34 @@ export class AudioEngine {
   }
   firework() { this._noise(0.25, 0.18); this._tone(180, 0.3, "sawtooth", 0.12, 0, 1200); }
 
+  // Boss-specific cues.
+  bossRoar() {
+    this._tone(120, 0.5, "sawtooth", 0.3, 0, 60);
+    this._noise(0.4, 0.2);
+  }
+  bossFire() { this._tone(220, 0.3, "sawtooth", 0.22, 0, 80); }
+  bossHit() { this._tone(160, 0.2, "square", 0.3, 0, 60); this._noise(0.15, 0.2); }
+  bossDefeat() {
+    this.stopTheme();
+    this._noise(0.6, 0.3);
+    const seq = [[330, 0], [262, 0.18], [196, 0.36], [131, 0.54], [98, 0.8]];
+    for (const [f, t] of seq) this._tone(f, 0.3, "sawtooth", 0.3, t);
+    // triumphant tag
+    [523, 659, 784, 1047].forEach((n, i) => this._tone(n, 0.2, "square", 0.3, 1.1 + i * 0.16));
+  }
+
   // ---- the looping theme --------------------------------------------------
-  startTheme(fast = false) {
+  startTheme(name = "overworld", fast = false) {
     this._ensure();
     if (!this.ctx) return;
+    if (this._playing && this.trackName === name) {
+      this.fast = fast; // same track already playing; just adjust tempo
+      return;
+    }
+    this.stopTheme();
+    this.trackName = name;
+    this.track = TRACKS[name] || TRACKS.overworld;
     this.fast = fast;
-    if (this._playing) return;
     this._playing = true;
     this._step = 0;
     this._nextTime = this.ctx.currentTime + 0.08;
@@ -188,22 +229,23 @@ export class AudioEngine {
   _schedule() {
     if (!this.ctx) return;
     const ahead = this.ctx.currentTime + 0.15;
-    const dur = this.fast ? this.stepDur * 0.62 : this.stepDur;
+    const dur = this.fast ? this.track.step * 0.62 : this.track.step;
+    const len = this.track.melody.length;
     while (this._nextTime < ahead) {
-      this._playStep(this._step, this._nextTime, dur);
-      this._step = (this._step + 1) % THEME_MELODY.length;
+      this._playStep(this._step % len, this._nextTime, dur);
+      this._step = (this._step + 1) % len;
       this._nextTime += dur;
     }
   }
 
   _playStep(i, when, dur) {
     if (this.muted) return;
-    const mel = THEME_MELODY[i];
-    if (mel && mel !== "_") this._voice(noteToFreq(mel), when, dur * 0.92, "square", 0.14, this.musicGain);
-    const bass = THEME_BASS[i];
-    if (bass && bass !== "_") this._voice(noteToFreq(bass), when, dur * 0.9, "triangle", 0.12, this.musicGain);
-    // Light percussion: a soft kick on every beat.
+    const mel = this.track.melody[i];
+    if (mel && mel !== "_") this._voice(noteToFreq(mel), when, dur * 0.92, this.track.type, 0.14, this.musicGain);
+    const bass = this.track.bass[i];
+    if (bass && bass !== "_") this._voice(noteToFreq(bass), when, dur * 0.9, "triangle", 0.13, this.musicGain);
     if (i % 4 === 0) this._kickAt(when);
+    if (this.track.boss && i % 4 === 2) this._hatAt(when); // driving boss snare/hat
   }
 
   _voice(freq, when, dur, type, vol, dest) {
@@ -232,6 +274,19 @@ export class AudioEngine {
     osc.stop(when + 0.12);
   }
 
+  _hatAt(when) {
+    const n = Math.floor(this.ctx.sampleRate * 0.05);
+    const buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0.05;
+    src.connect(gain).connect(this.musicGain);
+    src.start(when);
+  }
+
   stopTheme() {
     this._playing = false;
     if (this._scheduler) {
@@ -240,7 +295,7 @@ export class AudioEngine {
     }
   }
 
-  // Back-compat aliases used elsewhere.
+  // Back-compat aliases.
   startMusic() { this.startTheme(); }
   stopMusic() { this.stopTheme(); }
   flag() { this.flagpole(); }

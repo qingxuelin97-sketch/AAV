@@ -38,7 +38,7 @@ const hud = {
   power: $("hud-power"),
 };
 
-const POWER_LABEL = { small: "小", big: "大", fire: "🌸" };
+const POWER_LABEL = { small: "小", big: "大", fire: "🌸", ice: "🧊" };
 
 let lastStats = null;
 let submittedId = null;

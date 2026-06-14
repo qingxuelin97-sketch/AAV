@@ -11,8 +11,12 @@ import {
   PiranhaPlant,
   Mushroom,
   FireFlower,
+  IceFlower,
   Star,
   Fireball,
+  Bowser,
+  BossFireball,
+  Axe,
   Particle,
   FloatingText,
 } from "./entities.js";
@@ -44,7 +48,8 @@ class CoinPop {
 }
 
 const ENEMY = (e) => e instanceof Goomba || e instanceof Koopa;
-const ITEM = (e) => e instanceof Mushroom || e instanceof FireFlower || e instanceof Star;
+const ITEM = (e) =>
+  e instanceof Mushroom || e instanceof FireFlower || e instanceof IceFlower || e instanceof Star;
 
 export class Game {
   constructor(canvas, input, audio, hooks = {}) {
@@ -79,8 +84,13 @@ export class Game {
     this.audio.unlock();
     this.loadLevel(0);
     this.state = STATE.PLAYING;
-    this.audio.startTheme();
+    this.playTheme();
     this.emitHud();
+  }
+
+  // Start the correct looping theme for the current level (boss or overworld).
+  playTheme() {
+    this.audio.startTheme(this.themeName || "overworld", (this.player?.starTime ?? 0) > 0);
   }
 
   loadLevel(index) {
@@ -88,6 +98,9 @@ export class Game {
     const def = LEVELS[index];
     this.world = new World(def);
     this.timeLeft = def.time;
+    this.themeName = def.boss ? "boss" : "overworld";
+    this.boss = null;
+    this.bossDefeated = false;
     this.audio.setFast(false);
 
     // Extract spawn markers into entities; coins remain as tiles.
@@ -102,14 +115,21 @@ export class Game {
           this.entities.push(new Koopa(col, row));
           this.world.setTile(col, row, T.EMPTY);
         } else if (ch === T.PIRANHA) {
-          // Marker sits one tile above the pipe opening.
           this.entities.push(new PiranhaPlant(col, row + 1));
+          this.world.setTile(col, row, T.EMPTY);
+        } else if (ch === T.BOSS) {
+          this.boss = new Bowser(col, row);
+          this.entities.push(this.boss);
+          this.world.setTile(col, row, T.EMPTY);
+        } else if (ch === T.AXE) {
+          this.entities.push(new Axe(col, row));
           this.world.setTile(col, row, T.EMPTY);
         }
       }
     }
 
     this.fireballs = [];
+    this.bossFireballs = [];
     this.particles = [];
     this.floatingTexts = [];
     this.coinPops = [];
@@ -137,7 +157,7 @@ export class Game {
     this._carryPower = "small"; // lose power on death
     this.loadLevel(this.levelIndex);
     this.state = STATE.PLAYING;
-    this.audio.startTheme();
+    this.playTheme();
     this.emitHud();
   }
 
@@ -148,7 +168,7 @@ export class Game {
     } else {
       this.loadLevel(this.levelIndex + 1);
       this.state = STATE.PLAYING;
-      this.audio.startTheme();
+      this.playTheme();
       this.emitHud();
     }
   }
@@ -207,9 +227,26 @@ export class Game {
     const dir = player.facing;
     const x = dir > 0 ? player.x + player.w : player.x - 14;
     const y = player.y + player.h * 0.4;
-    this.fireballs.push(new Fireball(x, y, dir));
-    this.audio.fireball();
+    const type = player.power === "ice" ? "ice" : "fire";
+    this.fireballs.push(new Fireball(x, y, dir, type));
+    if (type === "ice") this.audio.iceball();
+    else this.audio.fireball();
     return true;
+  }
+
+  spawnBossFire(boss, player) {
+    const x = boss.facing < 0 ? boss.x - 16 : boss.x + boss.w;
+    const y = boss.y + 20;
+    let vx = boss.facing < 0 ? -240 : 240;
+    let vy = -60;
+    if (player) {
+      // Aim roughly at the player.
+      const dx = player.cx - x;
+      vx = Math.sign(dx) * 240;
+      vy = -80;
+    }
+    this.bossFireballs.push(new BossFireball(x, y, vx, vy));
+    this.audio.bossFire();
   }
 
   popText(worldX, worldY, text, color) {
@@ -246,7 +283,7 @@ export class Game {
         this.hooks.onPause?.(true);
       } else if (this.state === STATE.PAUSED) {
         this.state = STATE.PLAYING;
-        this.audio.startTheme(this.player.starTime > 0);
+        this.playTheme();
         this.hooks.onPause?.(false);
       }
     }
@@ -287,6 +324,10 @@ export class Game {
     const hi = this.cam.x + VIEW_W + 96;
     for (const e of this.entities) {
       if (e.dead) continue;
+      if (e.kind === "boss") {
+        e.update(dt, world, this.player, this);
+        continue;
+      }
       if (e.x + e.w < lo || e.x > hi) continue;
       if (e.contactCooldown > 0) e.contactCooldown -= dt;
       if (e.kind === "piranha") e.update(dt, world, this.player);
@@ -294,12 +335,14 @@ export class Game {
     }
 
     for (const fb of this.fireballs) fb.update(dt, world);
+    for (const bf of this.bossFireballs) bf.update(dt, world);
 
     this.handleEnemyCollisions();
     this.handleShellCollisions();
     this.handleFireballCollisions();
     this.handlePiranhaCollisions();
     this.handleItemCollisions();
+    this.handleBossCollisions();
 
     for (const p of this.particles) p.update(dt);
     for (const f of this.floatingTexts) f.update(dt);
@@ -307,6 +350,7 @@ export class Game {
 
     this.entities = this.entities.filter((e) => !e.dead);
     this.fireballs = this.fireballs.filter((f) => !f.dead);
+    this.bossFireballs = this.bossFireballs.filter((f) => !f.dead);
     this.particles = this.particles.filter((p) => !p.dead);
     this.floatingTexts = this.floatingTexts.filter((f) => !f.dead);
     this.coinPops = this.coinPops.filter((c) => !c.dead);
@@ -342,6 +386,15 @@ export class Game {
       if (e.dead || !ENEMY(e)) continue;
       if (e.state === "squashed" || e.state === "flipped") continue;
       if (!p.intersects(e)) continue;
+
+      // A frozen enemy shatters on contact and never hurts you.
+      if (e.state === "frozen") {
+        e.dead = true;
+        this.addScore(100);
+        this.popText(e.cx, e.y, "100", "#aee4ff");
+        this.spawnBurst(e.cx, e.cy, "#cdeeff");
+        continue;
+      }
 
       // Star power: blast through everything.
       if (star) {
@@ -410,14 +463,32 @@ export class Game {
   handleFireballCollisions() {
     for (const fb of this.fireballs) {
       if (fb.dead) continue;
+      const burst = fb.type === "ice" ? "#cdeeff" : "#ff8a3a";
+
+      // Boss takes projectile damage.
+      if (this.boss && this.boss.state === "alive" && fb.intersects(this.boss)) {
+        if (this.boss.hit(this)) {
+          this.popText(this.boss.cx, this.boss.y, "HIT!", "#ff5a5f");
+          if (this.boss.state === "dead") this.defeatBoss();
+        }
+        fb.dead = true;
+        this.spawnBurst(fb.cx, fb.cy, burst);
+        continue;
+      }
+
       for (const e of this.entities) {
         if (e.dead) continue;
-        if (ENEMY(e) && e.state !== "squashed" && e.state !== "flipped" && fb.intersects(e)) {
-          e.flip(fb.vx > 0 ? 1 : -1, this);
+        if (ENEMY(e) && e.state !== "squashed" && e.state !== "flipped" && e.state !== "frozen" && fb.intersects(e)) {
+          if (fb.type === "ice") {
+            e.freeze(this);
+            this.popText(e.cx, e.y, "FREEZE", "#aee4ff");
+          } else {
+            e.flip(fb.vx > 0 ? 1 : -1, this);
+            this.addScore(100);
+            this.popText(e.cx, e.y, "100");
+          }
           fb.dead = true;
-          this.addScore(100);
-          this.popText(e.cx, e.y, "100");
-          this.spawnBurst(fb.cx, fb.cy, "#ff8a3a");
+          this.spawnBurst(fb.cx, fb.cy, burst);
           break;
         }
         if (e.kind === "piranha" && e.active && fb.intersects(e)) {
@@ -425,11 +496,65 @@ export class Game {
           fb.dead = true;
           this.addScore(200);
           this.popText(e.cx, e.y, "200", "#ffd23f");
-          this.spawnBurst(fb.cx, fb.cy, "#ff8a3a");
+          this.spawnBurst(fb.cx, fb.cy, burst);
           break;
         }
       }
     }
+  }
+
+  // Player vs boss, boss fire vs player, and the bridge axe.
+  handleBossCollisions() {
+    const p = this.player;
+    if (!p.alive) return;
+
+    // Boss fire breath hurts the player.
+    for (const bf of this.bossFireballs) {
+      if (!bf.dead && p.intersects(bf)) {
+        bf.dead = true;
+        p.damage(this);
+      }
+    }
+
+    // Touching the axe defeats the boss instantly (classic bridge collapse).
+    for (const e of this.entities) {
+      if (e.kind === "axe" && !e.dead && p.intersects(e)) {
+        e.dead = true;
+        if (this.boss && this.boss.state === "alive") {
+          this.boss.state = "dead";
+          this.boss.vy = -220;
+        }
+        this.defeatBoss();
+        return;
+      }
+    }
+
+    // Body contact with a living boss.
+    const boss = this.boss;
+    if (boss && boss.state === "alive" && p.intersects(boss)) {
+      if (p.starTime > 0) {
+        if (boss.hit(this) && boss.state === "dead") this.defeatBoss();
+      } else {
+        p.damage(this); // Bowser is spiky — stomping doesn't work
+      }
+    }
+  }
+
+  defeatBoss() {
+    if (this.bossDefeated) return;
+    this.bossDefeated = true;
+    this.addScore(5000);
+    this.popText((this.boss?.cx ?? this.player.cx), (this.boss?.y ?? this.player.y) - 10, "5000", "#ffd23f");
+    this.audio.bossDefeat();
+    this.bossFireballs = [];
+    this.player.controllable = false;
+    this.player.vx = 0;
+    // Celebrate, then win (boss level is the finale).
+    this.state = STATE.LEVEL_CLEAR;
+    this.clearPhase = "celebrate";
+    this.clearTimer = 0;
+    this._fireworkTimer = 0;
+    this.fireworks = [];
   }
 
   handlePiranhaCollisions() {
@@ -469,6 +594,11 @@ export class Game {
         this.audio.powerup();
         this.addScore(1000);
         this.popText(e.cx, e.y, "1000", "#ff8a3a");
+      } else if (e instanceof IceFlower) {
+        p.setPower("ice");
+        this.audio.powerup();
+        this.addScore(1000);
+        this.popText(e.cx, e.y, "1000", "#7ec8ff");
       } else if (e instanceof Star) {
         p.giveStar();
         this.audio.setFast(true);
@@ -593,12 +723,12 @@ export class Game {
     ctx.clearRect(0, 0, VIEW_W, VIEW_H);
 
     if (this.state === STATE.TITLE) {
-      drawBackground(ctx, this.cam, LEVELS[0]);
+      drawBackground(ctx, this.cam, LEVELS[0], this.time);
       return;
     }
 
     const def = LEVELS[this.levelIndex];
-    drawBackground(ctx, this.cam, def);
+    drawBackground(ctx, this.cam, def, this.time);
 
     const castleX = (this.world.flagCol + 8) * TILE - this.cam.x;
     if (castleX < VIEW_W + 200 && castleX > -300) {
@@ -612,6 +742,7 @@ export class Game {
     ctx.translate(-this.cam.x, 0);
     for (const e of this.entities) e.draw(ctx);
     for (const fb of this.fireballs) fb.draw(ctx);
+    for (const bf of this.bossFireballs) bf.draw(ctx);
     for (const c of this.coinPops) c.draw(ctx);
     for (const p of this.particles) p.draw(ctx);
     if (this.player) this.player.draw(ctx);
@@ -624,10 +755,32 @@ export class Game {
       for (const fw of this.fireworks) drawFirework(ctx, fw.x, fw.y, fw.t, fw.color);
     }
 
+    if (this.boss && this.boss.state === "alive") this.drawBossBar(ctx);
+
     if (this.state === STATE.PAUSED) {
       ctx.fillStyle = "rgba(0,0,0,0.35)";
       ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     }
+  }
+
+  drawBossBar(ctx) {
+    const w = 280;
+    const x = (VIEW_W - w) / 2;
+    const y = 18;
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(x - 10, y - 6, w + 20, 34);
+    ctx.fillStyle = "#fff";
+    ctx.font = "10px 'Press Start 2P', monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("BOWSER", VIEW_W / 2, y + 6);
+    const hpMax = 5;
+    const pw = w / hpMax;
+    for (let i = 0; i < hpMax; i++) {
+      ctx.fillStyle = i < this.boss.hp ? "#ff3b3b" : "#3a2030";
+      ctx.fillRect(x + i * pw + 2, y + 12, pw - 4, 10);
+    }
+    ctx.restore();
   }
 
   drawFlagCloth(ctx) {
