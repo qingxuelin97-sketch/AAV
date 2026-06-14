@@ -48,26 +48,8 @@ class CoinPop {
 }
 
 const BOSS_PRESETS = {
-  mini: {
-    name: "锤子龟王",
-    tint: "#4aa3ff",
-    hp: 3,
-    phases: 1,
-    speed: 95,
-    fireInterval: 1.5,
-    jumpInterval: 1.7,
-    arc: true,
-    spread: 1,
-  },
-  bowser: {
-    name: "库巴",
-    hp: 5,
-    phases: 2,
-    speed: 85,
-    fireInterval: 1.5,
-    jumpInterval: 2.0,
-    spread: 1,
-  },
+  mini: { variant: "mini", name: "锤子龟王", tint: "#4aa3ff", hp: 4, phases: 1, speed: 95 },
+  bowser: { variant: "bowser", name: "库巴", hp: 6, phases: 2, speed: 80 },
 };
 
 const ENEMY = (e) => e instanceof Goomba || e instanceof Koopa;
@@ -100,6 +82,12 @@ export class Game {
     this._carryPower = "small";
     this.reserve = "mushroom";
     this.elapsedMs = 0;
+    this.toast = null;
+  }
+
+  // A short banner explaining what just happened (e.g. an item's effect).
+  showToast(text) {
+    this.toast = { text, t: 2.4 };
   }
 
   // Deploy the reserved power-up as a collectible the player can grab.
@@ -112,6 +100,7 @@ export class Game {
     else this.entities.push(new Mushroom(x, y, false));
     this.reserve = null;
     this.audio.pipe();
+    this.showToast("已放出道具，去捡起来！");
   }
 
   // ---- lifecycle ---------------------------------------------------------
@@ -281,20 +270,50 @@ export class Game {
     return true;
   }
 
-  spawnBossFire(boss, player) {
-    const x = boss.facing < 0 ? boss.x - 16 : boss.x + boss.w;
-    const y = boss.y + 20;
-    const dir = player ? Math.sign(player.cx - x) || -1 : boss.facing;
-    const base = 240;
-    const n = boss.spread || 1;
-    for (let i = 0; i < n; i++) {
-      // Fan the volley out a little when there are several projectiles.
-      const spreadV = boss.arc ? -260 - i * 40 : -60 - (i - (n - 1) / 2) * 70;
-      const vx = dir * (base + (boss.arc ? i * 20 : 0));
-      this.bossFireballs.push(new BossFireball(x, y, vx, spreadV, boss.arc));
+  _bossDir(boss, player) {
+    return player ? Math.sign(player.cx - boss.cx) || -1 : boss.facing;
+  }
+
+  // A quick stream of straight fireballs.
+  bossBreathe(boss, player) {
+    const dir = this._bossDir(boss, player);
+    const x = dir < 0 ? boss.x - 10 : boss.x + boss.w - 10;
+    const y = boss.y + 26;
+    for (let i = 0; i < 3; i++) {
+      this.bossFireballs.push(new BossFireball(x + dir * i * 8, y, dir * (280 + i * 30), -40, "fire"));
     }
-    if (boss.arc) this.audio.bump();
-    else this.audio.bossFire();
+    this.audio.bossFire();
+  }
+
+  // A fan of three fireballs.
+  bossSpread(boss, player) {
+    const dir = this._bossDir(boss, player);
+    const x = dir < 0 ? boss.x - 10 : boss.x + boss.w - 10;
+    const y = boss.y + 26;
+    for (const vy of [-200, -60, 80]) {
+      this.bossFireballs.push(new BossFireball(x, y, dir * 300, vy, "fire"));
+    }
+    this.audio.bossFire();
+  }
+
+  // Lobbed hammers (mini-boss).
+  bossHammers(boss, player) {
+    const dir = this._bossDir(boss, player);
+    const x = dir < 0 ? boss.x - 6 : boss.x + boss.w - 6;
+    const y = boss.y + 8;
+    const n = boss.phase >= 2 ? 3 : 2;
+    for (let i = 0; i < n; i++) {
+      this.bossFireballs.push(new BossFireball(x, y, dir * (150 + i * 80), -360 - i * 30, "hammer"));
+    }
+    this.audio.bump();
+  }
+
+  // Two ground shockwaves travelling outward from a landing slam.
+  bossShock(boss) {
+    const y = boss.y + boss.h - 24;
+    this.bossFireballs.push(new BossFireball(boss.x, y, -330, 0, "shock"));
+    this.bossFireballs.push(new BossFireball(boss.x + boss.w - 22, y, 330, 0, "shock"));
+    this.audio.bossHit();
   }
 
   popText(worldX, worldY, text, color) {
@@ -397,6 +416,10 @@ export class Game {
     for (const p of this.particles) p.update(dt);
     for (const f of this.floatingTexts) f.update(dt);
     for (const c of this.coinPops) c.update(dt);
+    if (this.toast) {
+      this.toast.t -= dt;
+      if (this.toast.t <= 0) this.toast = null;
+    }
 
     this.entities = this.entities.filter((e) => !e.dead);
     this.fireballs = this.fireballs.filter((f) => !f.dead);
@@ -437,11 +460,11 @@ export class Game {
       if (e.state === "squashed" || e.state === "flipped") continue;
       if (!p.intersects(e)) continue;
 
-      // A frozen enemy shatters on contact and never hurts you.
+      // A frozen enemy shatters into coins on contact and never hurts you.
       if (e.state === "frozen") {
         e.dead = true;
-        this.addScore(100);
-        this.popText(e.cx, e.y, "100", "#aee4ff");
+        this.collectCoin(e.cx, e.y, 200, false);
+        this.spawnCoinPop(e.cx - TILE / 2, e.y);
         this.spawnBurst(e.cx, e.cy, "#cdeeff");
         continue;
       }
@@ -515,9 +538,12 @@ export class Game {
       if (fb.dead) continue;
       const burst = fb.type === "ice" ? "#cdeeff" : "#ff8a3a";
 
-      // Boss takes projectile damage.
+      // Fire damages the boss; ice freezes it in place (a control tool).
       if (this.boss && this.boss.state === "alive" && fb.intersects(this.boss)) {
-        if (this.boss.hit(this)) {
+        if (fb.type === "ice") {
+          this.boss.stun(this);
+          this.popText(this.boss.cx, this.boss.y, "冻住!", "#aee4ff");
+        } else if (this.boss.hit(this)) {
           this.popText(this.boss.cx, this.boss.y, "HIT!", "#ff5a5f");
           if (this.boss.state === "dead") this.defeatBoss();
         }
@@ -634,9 +660,15 @@ export class Game {
         this.lives++;
         this.audio.oneUp();
         this.popText(e.cx, e.y, "1UP", "#5fe06b");
+        this.showToast("🍄 1UP：生命 +1");
       } else if (e instanceof Mushroom) {
-        if (p.power === "small") p.setPower("big");
-        else if (!this.reserve) this.reserve = "mushroom"; // stash spare
+        if (p.power === "small") {
+          p.setPower("big");
+          this.showToast("🍄 变大：可挨一次伤害，能顶碎砖块");
+        } else if (!this.reserve) {
+          this.reserve = "mushroom"; // stash spare
+          this.showToast("🍄 已存入道具栏（按 C 使用）");
+        }
         this.audio.powerup();
         this.addScore(1000);
         this.popText(e.cx, e.y, "1000", "#fff");
@@ -646,18 +678,21 @@ export class Game {
         this.audio.powerup();
         this.addScore(1000);
         this.popText(e.cx, e.y, "1000", "#ff8a3a");
+        this.showToast("🌸 火焰：按 X 发射火球，是 Boss 的主要输出");
       } else if (e instanceof IceFlower) {
         if (p.power === "ice" && !this.reserve) this.reserve = "ice";
         p.setPower("ice");
         this.audio.powerup();
         this.addScore(1000);
         this.popText(e.cx, e.y, "1000", "#7ec8ff");
+        this.showToast("🧊 冰冻：按 X 冻住敌人(碎裂得金币)，可冻僵 Boss");
       } else if (e instanceof Star) {
         p.giveStar();
         this.audio.setFast(true);
         this.audio.powerup();
         this.addScore(1000);
         this.popText(e.cx, e.y, "STAR!", "#ffd23f");
+        this.showToast("⭐ 无敌星：短时间无敌，撞飞一切，还能撞伤 Boss");
       }
     }
   }
@@ -809,11 +844,31 @@ export class Game {
     }
 
     if (this.boss && this.boss.state === "alive") this.drawBossBar(ctx);
+    if (this.toast) this.drawToast(ctx);
 
     if (this.state === STATE.PAUSED) {
       ctx.fillStyle = "rgba(0,0,0,0.35)";
       ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     }
+  }
+
+  drawToast(ctx) {
+    const a = Math.min(1, this.toast.t) * Math.min(1, (2.4 - this.toast.t) * 4);
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, a);
+    ctx.font = "12px 'Press Start 2P', monospace";
+    ctx.textAlign = "center";
+    const text = this.toast.text;
+    const tw = ctx.measureText(text).width;
+    const y = VIEW_H - 70;
+    ctx.fillStyle = "rgba(8,4,24,0.85)";
+    ctx.fillRect(VIEW_W / 2 - tw / 2 - 16, y - 20, tw + 32, 32);
+    ctx.strokeStyle = "#ffd23f";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(VIEW_W / 2 - tw / 2 - 16, y - 20, tw + 32, 32);
+    ctx.fillStyle = "#fff";
+    ctx.fillText(text, VIEW_W / 2, y);
+    ctx.restore();
   }
 
   drawBossBar(ctx) {

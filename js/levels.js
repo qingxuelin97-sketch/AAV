@@ -311,6 +311,44 @@ function snow2() {
 }
 
 // ---------------------------------------------------------------------------
+// World 2-4 — night approach to the castle, the longest stage.
+// ---------------------------------------------------------------------------
+function night2() {
+  const w = 200;
+  const b = new LevelBuilder(w);
+  b.ground(0, w - 1);
+  [24, 52, 80, 108, 136, 164, 188].forEach((c) => b.pit(c, 2));
+
+  b.set(8, 9, T.QBLOCK_MUSH);
+  b.set(10, 9, T.QBLOCK_MUSH);
+  b.coins(9, 14, 18);
+  b.set(16, 12, T.GOOMBA);
+
+  b.pipe(36, 2, true);
+  b.set(30, 9, T.QBLOCK_ICE);
+  b.set(46, 12, T.GOOMBA);
+  b.set(58, 9, T.QBLOCK_COIN);
+
+  b.set(64, 12, T.KOOPA);
+  b.set(70, 9, T.QBLOCK_STAR);
+  b.pipe(92, 2, true);
+  b.set(102, 12, T.GOOMBA);
+
+  b.set(120, 12, T.GOOMBA);
+  b.set(122, 12, T.GOOMBA);
+  b.set(128, 9, T.QBLOCK_1UP);
+  b.coins(9, 124, 130);
+
+  b.pipe(150, 2, true);
+  b.set(158, 12, T.KOOPA);
+  b.set(174, 12, T.GOOMBA);
+  b.set(180, 9, T.QBLOCK_ICE);
+  b.coins(9, 182, 186);
+
+  return { name: "2-4", time: 400, bg: "night", flagCol: b.flag(194), tiles: b.toRows(), width: w };
+}
+
+// ---------------------------------------------------------------------------
 // World 2-castle — the final, two-phase Bowser battle.
 // ---------------------------------------------------------------------------
 function finalBoss() {
@@ -357,5 +395,6 @@ export const LEVELS = [
   snow1(),
   miniBoss(),
   snow2(),
+  night2(),
   finalBoss(),
 ];
