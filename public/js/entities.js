@@ -494,10 +494,18 @@ export class PiranhaPlant extends Body {
     this.pipeCenter = (col + 1) * TILE;
   }
   get active() {
-    return this.rise > 12; // only dangerous / killable when sufficiently out
+    // Only dangerous when sufficiently out AND Mario isn't standing right by it
+    // (you're always safe on/next to the pipe, like the classic games).
+    return this.rise > 12 && !this.suppressed;
   }
   update(dt, world, player) {
-    const playerNear = player && Math.abs(player.cx - this.pipeCenter) < TILE * 2.2;
+    const playerNear = player && Math.abs(player.cx - this.pipeCenter) < TILE * 2.6;
+    this.suppressed = playerNear;
+    // Retract immediately when Mario approaches so he can pass safely.
+    if (playerNear) {
+      if (this.phase === "rising" || this.phase === "up") this.phase = "lowering";
+      else if (this.phase === "down") this.timer = Math.max(this.timer, 0.4);
+    }
     switch (this.phase) {
       case "down":
         this.timer -= dt;
@@ -676,34 +684,63 @@ export class Fireball extends Body {
 }
 
 // --------------------------------------------------------------------------
-// Bowser — the boss. Patrols, jumps, breathes fire, and takes several hits.
+// Boss (Bowser & variants). Patrols, jumps, hurls projectiles, takes several
+// hits, and can rage into a tougher second phase.
 // --------------------------------------------------------------------------
 export class Bowser extends Body {
-  constructor(col, row) {
+  constructor(col, row, opts = {}) {
     super(col * TILE, (row + 1) * TILE - 64, 56, 64);
     this.kind = "boss";
-    this.hp = BOSS_HP;
+    this.variant = opts.variant || "bowser";
+    this.name = opts.name || "BOWSER";
+    this.tint = opts.tint || null;
+    this.hpPerPhase = opts.hp || BOSS_HP;
+    this.maxPhase = opts.phases || 1;
+    this.phase = 1;
+    this.hp = this.hpPerPhase;
+    this.speed = opts.speed || 75;
+    this.fireInterval = opts.fireInterval || 1.8;
+    this.jumpInterval = opts.jumpInterval || 2.2;
+    this.arc = !!opts.arc; // lobbed (hammer) projectiles
+    this.spread = opts.spread || 1; // projectiles per volley
     this.facing = -1;
-    this.vx = -75;
+    this.vx = -this.speed;
     this.minX = Math.max(TILE, (col - 5) * TILE);
     this.maxX = (col + 2) * TILE;
     this.walkTimer = 0;
     this.walkFrame = 0;
-    this.jumpTimer = 2.2;
-    this.fireTimer = 1.6;
+    this.jumpTimer = this.jumpInterval;
+    this.fireTimer = this.fireInterval;
     this.invuln = 0;
+    this.enraged = false;
     this.state = "alive"; // alive | dead
     this.deadTimer = 0;
+  }
+  nextPhase(game) {
+    this.phase += 1;
+    this.hp = this.hpPerPhase;
+    this.invuln = 1.4;
+    this.enraged = true;
+    this.speed *= 1.4;
+    this.vx = this.vx < 0 ? -this.speed : this.speed;
+    this.fireInterval *= 0.6;
+    this.jumpInterval *= 0.7;
+    this.spread = Math.min(3, this.spread + 1);
+    game.audio.bossRoar();
   }
   hit(game) {
     if (this.state !== "alive" || this.invuln > 0) return false;
     this.hp -= 1;
-    this.invuln = 1.0;
+    this.invuln = 0.8;
     game.audio.bossHit();
     if (this.hp <= 0) {
-      this.state = "dead";
-      this.vx = 0;
-      this.vy = -220;
+      if (this.phase < this.maxPhase) {
+        this.nextPhase(game);
+      } else {
+        this.state = "dead";
+        this.vx = 0;
+        this.vy = -220;
+      }
     }
     return true;
   }
@@ -732,12 +769,12 @@ export class Bowser extends Body {
     this.jumpTimer -= dt;
     if (this.jumpTimer <= 0 && this.onGround) {
       this.vy = -560;
-      this.jumpTimer = 2.2 + Math.random();
+      this.jumpTimer = this.jumpInterval + Math.random();
       game.audio.bossRoar();
     }
     this.fireTimer -= dt;
     if (this.fireTimer <= 0) {
-      this.fireTimer = 1.7 + Math.random() * 0.8;
+      this.fireTimer = this.fireInterval + Math.random() * 0.5;
       game.spawnBossFire(this, player);
     }
     this.walkTimer += dt;
@@ -755,33 +792,39 @@ export class Bowser extends Body {
         walkFrame: this.walkFrame,
         hurt: this.invuln > 0,
         dead: this.state === "dead",
+        tint: this.enraged ? "#ff4040" : this.tint,
       }
     );
   }
 }
 
-// Bowser's fire breath.
+// A boss projectile — straight fire breath or a lobbed hammer (arc).
 export class BossFireball extends Body {
-  constructor(x, y, vx, vy) {
-    super(x, y, 20, 16);
+  constructor(x, y, vx, vy, arc = false) {
+    super(x, y, 20, 18);
     this.kind = "bossfire";
     this.vx = vx;
     this.vy = vy;
-    this.life = 4;
+    this.arc = arc;
+    this.life = 4.5;
     this.t = 0;
   }
   update(dt, world) {
     this.t += dt;
     this.life -= dt;
     if (this.life <= 0) this.dead = true;
-    this.vy += GRAVITY * 0.18 * dt;
+    this.vy += GRAVITY * (this.arc ? 0.6 : 0.18) * dt;
     this.x += this.vx * dt;
     this.y += this.vy * dt;
     if (world.isSolid(Math.floor(this.cx / TILE), Math.floor(this.cy / TILE))) this.dead = true;
     if (this.y > world.pixelHeight + 100 || this.x < -60) this.dead = true;
   }
   draw(ctx) {
-    Sprites.drawFireball(ctx, { x: this.x, y: this.y, w: this.w, h: this.h }, this.t, "fire");
+    if (this.arc) {
+      Sprites.drawHammer(ctx, { x: this.x, y: this.y, w: this.w, h: this.h }, this.t);
+    } else {
+      Sprites.drawFireball(ctx, { x: this.x, y: this.y, w: this.w, h: this.h }, this.t, "fire");
+    }
   }
 }
 

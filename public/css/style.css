@@ -319,6 +319,82 @@ h2.success {
   opacity: 0;
 }
 
+/* ---------- Level select ---------- */
+.level-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  max-width: 560px;
+}
+
+.level-btn {
+  font-family: var(--pixel);
+  font-size: 11px;
+  color: #000;
+  background: var(--accent);
+  border: 3px solid #000;
+  box-shadow: 3px 3px 0 #000;
+  padding: 14px 6px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 96px;
+}
+
+.level-btn.boss {
+  background: var(--accent-2);
+  color: #fff;
+}
+
+.level-btn.locked {
+  background: #2a1a4f;
+  color: #6b5b9a;
+  cursor: not-allowed;
+  box-shadow: 3px 3px 0 #120a26;
+}
+
+.level-btn:not(.locked):hover {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 #000;
+}
+
+.level-btn .lv-emoji {
+  font-size: 22px;
+}
+
+.hint-small {
+  font-size: 9px;
+  color: #b9a6ff;
+}
+
+/* ---------- Key feedback ---------- */
+.keyfeedback {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.kf {
+  font-size: 10px;
+  padding: 8px 6px;
+  min-width: 30px;
+  text-align: center;
+  border: 2px solid #000;
+  background: var(--panel-2);
+  color: #cdbcff;
+  transition: background 0.04s, color 0.04s, transform 0.04s;
+}
+
+.kf.active {
+  background: var(--accent);
+  color: #000;
+  transform: translateY(2px);
+}
+
 .page-footer {
   text-align: center;
   font-size: 9px;

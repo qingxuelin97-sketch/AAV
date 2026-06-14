@@ -19,15 +19,23 @@ the Web Audio API, so the whole thing is self-contained.
 - **Snappy platforming physics** — acceleration/friction, run vs. walk speeds,
   variable jump height, skid turns, faster run-jumps, plus *coyote time* and
   *jump buffering* for a forgiving, modern feel.
-- **6 hand-designed levels** across day, dusk, night, **snow** and **castle**
+- **Chinese UI** with a **level-select menu** (levels unlock as you clear them,
+  saved in your browser).
+- **8 hand-designed levels** across day, dusk, night, **snow** and **castle**
   themes (with falling snow and bubbling lava), each ending in a flagpole +
-  fireworks — and a final **Bowser boss battle**.
-- **🐢 Bowser boss fight** — a patrolling, jumping, fire-breathing boss with a
-  health bar. Hit him 5 times with projectiles, or reach the bridge **axe** to
-  drop him (classic). Stomping doesn't work — he's spiky!
+  fireworks. Platforming difficulty is kept gentle and **every level is
+  automatically verified completable** by a headless auto-pilot in the tests.
+- **Two boss battles** — a mid-game **Hammer King** mini-boss (lobs hammers),
+  and a final **two-phase Bowser** who *enrages* (faster, more fire) at half
+  health. Hit them with projectiles or reach the bridge **axe**. Stomping
+  doesn't work — they're spiky!
+- **Reserve item box** — every level starts with a spare 🍄 you can deploy any
+  time with `C`; spare power-ups you grab get stashed there too.
 - **Power-ups** — Super Mushroom (grow), **Fire Flower** (bouncing fireballs),
   **Ice Flower** (iceballs that freeze enemies into shatterable blocks),
-  **Super Star** (rainbow invincibility), and 1-Up Mushroom.
+  **Super Star** (rainbow invincibility), 1-Up Mushroom, and the reserve box.
+- **On-screen key feedback** — the control chips light up as you press, on top
+  of forgiving coyote-time + jump-buffering input.
 - **Enemies** — Goombas, Koopa Troopas with full shell mechanics (stomp → kick
   → spinning shell combos), and **Piranha Plants** that rise from pipes and duck
   when you stand near.
@@ -55,6 +63,7 @@ the Web Audio API, so the whole thing is self-contained.
 | Move | `←` `→` / `A` `D` |
 | Jump | `Z` / `Space` / `↑` / `W` |
 | Run / Throw fire-or-iceball | `X` / `Shift` |
+| Use reserve item | `C` / `↓` |
 | Pause | `P` |
 | Mute | `M` |
 
@@ -76,9 +85,12 @@ Then open <http://localhost:3000>.
 npm test
 ```
 
-26 tests cover level integrity, collision/physics edge cases (gravity, walls,
-pits, growing/shrinking, enemy ledge-turning) and a headless run of the full
-game loop through play, the flag sequence and death/respawn/game-over.
+71 tests cover level integrity, collision/physics edge cases (gravity, walls,
+pits, growing/shrinking, enemy ledge-turning), power-ups (fire/ice/star/reserve),
+the boss fights (phases, axe, fire-breath), a headless run of the full game loop
+— and, crucially, an **auto-pilot that proves every non-boss level is actually
+completable** (it runs and jumps through each level using the real physics; any
+level it can't clear fails CI).
 
 ## API
 

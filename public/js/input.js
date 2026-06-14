@@ -12,6 +12,9 @@ const KEY_MAP = {
   KeyX: "run",
   ShiftLeft: "run",
   ShiftRight: "run",
+  KeyC: "item",
+  ArrowDown: "item",
+  KeyS: "item",
   KeyP: "pause",
   KeyM: "mute",
   Enter: "start",
@@ -19,9 +22,11 @@ const KEY_MAP = {
 
 export class Input {
   constructor() {
-    this.state = { left: false, right: false, jump: false, run: false };
+    this.state = { left: false, right: false, jump: false, run: false, item: false };
     // Edge-triggered events consumed once per frame.
     this.pressed = new Set();
+    // Set of actions held this frame (for on-screen key feedback).
+    this.held = new Set();
     this._setup();
   }
 
@@ -30,16 +35,19 @@ export class Input {
       const action = KEY_MAP[e.code];
       if (!action) return;
       // Prevent page scroll on arrows/space.
-      if (["ArrowLeft", "ArrowRight", "ArrowUp", "Space"].includes(e.code)) {
+      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Space"].includes(e.code)) {
         e.preventDefault();
       }
       if (!e.repeat) this.pressed.add(action);
+      this.held.add(action);
       if (action in this.state) this.state[action] = true;
     });
 
     window.addEventListener("keyup", (e) => {
       const action = KEY_MAP[e.code];
-      if (action && action in this.state) this.state[action] = false;
+      if (!action) return;
+      this.held.delete(action);
+      if (action in this.state) this.state[action] = false;
     });
 
     // Lose all held keys when the tab loses focus (avoids "stuck running").
@@ -57,10 +65,12 @@ export class Input {
       const down = (e) => {
         e.preventDefault();
         this.pressed.add(action);
+        this.held.add(action);
         if (action in this.state) this.state[action] = true;
       };
       const up = (e) => {
         e.preventDefault();
+        this.held.delete(action);
         if (action in this.state) this.state[action] = false;
       };
       btn.addEventListener("touchstart", down, { passive: false });
@@ -74,6 +84,7 @@ export class Input {
 
   releaseAll() {
     for (const k of Object.keys(this.state)) this.state[k] = false;
+    this.held.clear();
   }
 
   // Consume an edge-triggered press (true only on the frame it was pressed).

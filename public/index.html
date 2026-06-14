@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Super Mario — Full-Stack Platformer</title>
+    <title>超级马里奥 — 全栈网页平台游戏</title>
     <link rel="stylesheet" href="./css/style.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link
@@ -14,86 +14,107 @@
   <body>
     <div id="app">
       <header class="hud" id="hud">
-        <div class="hud-item"><span class="hud-label">MARIO</span><span id="hud-score">000000</span></div>
+        <div class="hud-item"><span class="hud-label">分数</span><span id="hud-score">000000</span></div>
         <div class="hud-item"><span class="hud-label coin">🪙</span><span id="hud-coins">×00</span></div>
-        <div class="hud-item"><span class="hud-label">WORLD</span><span id="hud-world">1-1</span></div>
-        <div class="hud-item"><span class="hud-label">TIME</span><span id="hud-time">400</span></div>
-        <div class="hud-item"><span class="hud-label">LIVES</span><span id="hud-lives">×3</span></div>
-        <div class="hud-item"><span class="hud-label">FORM</span><span id="hud-power">小</span></div>
+        <div class="hud-item"><span class="hud-label">世界</span><span id="hud-world">1-1</span></div>
+        <div class="hud-item"><span class="hud-label">时间</span><span id="hud-time">400</span></div>
+        <div class="hud-item"><span class="hud-label">生命</span><span id="hud-lives">×3</span></div>
+        <div class="hud-item"><span class="hud-label">形态</span><span id="hud-power">小</span></div>
+        <div class="hud-item"><span class="hud-label">道具</span><span id="hud-reserve">🍄</span></div>
       </header>
 
       <div class="stage">
         <canvas id="game" width="960" height="480"></canvas>
 
-        <!-- Title / Start overlay -->
+        <!-- 标题 / 开始 -->
         <div class="overlay" id="overlay-title">
-          <h1 class="logo">SUPER<br /><span>MARIO</span></h1>
-          <p class="tagline">A full-stack canvas platformer</p>
-          <button class="btn" id="btn-start">START GAME</button>
+          <h1 class="logo">超级<br /><span>马里奥</span></h1>
+          <p class="tagline">全栈 Canvas 平台跳跃游戏</p>
+          <button class="btn" id="btn-start">开始游戏</button>
+          <button class="btn ghost" id="btn-select">选择关卡</button>
           <div class="controls-hint">
-            <p><b>← →</b> Move &nbsp;•&nbsp; <b>Z / Space / ↑</b> Jump &nbsp;•&nbsp; <b>X / Shift</b> Run</p>
-            <p>As <b style="color:#fff">Fire Mario</b>, press <b>X</b> to throw fireballs 🔥</p>
-            <p>🍄 Grow &nbsp; 🌸 Fire &nbsp; ⭐ Invincible &nbsp; 🪙 100 = 1-UP</p>
-            <p><b>P</b> Pause &nbsp;•&nbsp; <b>M</b> Mute &nbsp;•&nbsp; 4 worlds</p>
+            <p><b>← →</b> 移动 &nbsp;•&nbsp; <b>Z / 空格 / ↑</b> 跳跃 &nbsp;•&nbsp; <b>X / Shift</b> 加速</p>
+            <p>火焰/冰冻形态下按 <b>X</b> 发射火球/冰球 &nbsp;•&nbsp; 按 <b>C / ↓</b> 使用道具栏</p>
+            <p>🍄 变大 &nbsp; 🌸 火焰 &nbsp; 🧊 冰冻 &nbsp; ⭐ 无敌 &nbsp; 🪙 集满100=加命</p>
+            <p><b>P</b> 暂停 &nbsp;•&nbsp; <b>M</b> 静音 &nbsp;•&nbsp; 共 8 关 + 2 个 Boss</p>
           </div>
         </div>
 
-        <!-- Pause overlay -->
+        <!-- 选关 -->
+        <div class="overlay hidden" id="overlay-select">
+          <h2>选择关卡</h2>
+          <div class="level-grid" id="level-grid"></div>
+          <p class="hint-small">通关后解锁下一关 · 🔒 表示尚未解锁</p>
+          <button class="btn ghost" id="btn-select-back">返回</button>
+        </div>
+
+        <!-- 暂停 -->
         <div class="overlay hidden" id="overlay-pause">
-          <h2>PAUSED</h2>
-          <button class="btn" id="btn-resume">RESUME</button>
-          <button class="btn ghost" id="btn-quit">QUIT TO TITLE</button>
+          <h2>已暂停</h2>
+          <button class="btn" id="btn-resume">继续游戏</button>
+          <button class="btn ghost" id="btn-quit">返回标题</button>
         </div>
 
-        <!-- Game over overlay -->
+        <!-- 游戏结束 -->
         <div class="overlay hidden" id="overlay-gameover">
-          <h2 class="danger">GAME OVER</h2>
-          <p class="final-score">Score: <span id="go-score">0</span></p>
+          <h2 class="danger">游戏结束</h2>
+          <p class="final-score">得分：<span id="go-score">0</span></p>
           <div class="name-entry">
-            <label for="player-name">Enter your name for the leaderboard:</label>
-            <input id="player-name" maxlength="16" placeholder="ANON" autocomplete="off" />
-            <button class="btn" id="btn-submit-score">SUBMIT SCORE</button>
+            <label for="player-name">输入名字上传到排行榜：</label>
+            <input id="player-name" maxlength="16" placeholder="无名氏" autocomplete="off" />
+            <button class="btn" id="btn-submit-score">上传分数</button>
           </div>
-          <button class="btn ghost" id="btn-retry">PLAY AGAIN</button>
+          <button class="btn ghost" id="btn-retry">再玩一次</button>
         </div>
 
-        <!-- Win overlay -->
+        <!-- 通关胜利 -->
         <div class="overlay hidden" id="overlay-win">
-          <h2 class="success">YOU WIN! 🏆</h2>
-          <p class="tagline">You cleared every world!</p>
-          <p class="final-score">Score: <span id="win-score">0</span></p>
+          <h2 class="success">通关啦！🏆</h2>
+          <p class="tagline">你击败了库巴，拯救了世界！</p>
+          <p class="final-score">得分：<span id="win-score">0</span></p>
           <div class="name-entry">
-            <label for="player-name-win">Enter your name for the leaderboard:</label>
-            <input id="player-name-win" maxlength="16" placeholder="ANON" autocomplete="off" />
-            <button class="btn" id="btn-submit-score-win">SUBMIT SCORE</button>
+            <label for="player-name-win">输入名字上传到排行榜：</label>
+            <input id="player-name-win" maxlength="16" placeholder="无名氏" autocomplete="off" />
+            <button class="btn" id="btn-submit-score-win">上传分数</button>
           </div>
-          <button class="btn ghost" id="btn-retry-win">PLAY AGAIN</button>
+          <button class="btn ghost" id="btn-retry-win">再玩一次</button>
         </div>
 
         <div class="flash hidden" id="flash"></div>
       </div>
 
       <aside class="sidebar">
-        <h3>🏆 LEADERBOARD</h3>
+        <h3>🏆 排行榜</h3>
         <ol id="leaderboard" class="leaderboard">
-          <li class="empty">Loading…</li>
+          <li class="empty">加载中…</li>
         </ol>
-        <button class="btn small" id="btn-refresh-lb">REFRESH</button>
+        <button class="btn small" id="btn-refresh-lb">刷新</button>
+
+        <!-- 按键反馈 -->
+        <div class="keyfeedback" id="keyfeedback">
+          <span class="kf" data-act="left">←</span>
+          <span class="kf" data-act="right">→</span>
+          <span class="kf" data-act="jump">跳</span>
+          <span class="kf" data-act="run">跑/🔥</span>
+          <span class="kf" data-act="item">道具</span>
+        </div>
+
         <div class="touch-controls" id="touch-controls">
           <div class="pad">
             <button data-key="left" class="tbtn">◀</button>
             <button data-key="right" class="tbtn">▶</button>
           </div>
           <div class="actions">
-            <button data-key="run" class="tbtn">RUN/🔥</button>
-            <button data-key="jump" class="tbtn big">JUMP</button>
+            <button data-key="item" class="tbtn">道具</button>
+            <button data-key="run" class="tbtn">跑/🔥</button>
+            <button data-key="jump" class="tbtn big">跳</button>
           </div>
         </div>
       </aside>
     </div>
 
     <footer class="page-footer">
-      Built with HTML5 Canvas + Node/Express · Use arrow keys to play
+      用 HTML5 Canvas + Node/Express 打造 · 方向键移动，Z/空格跳跃
     </footer>
 
     <script type="module" src="./js/main.js"></script>

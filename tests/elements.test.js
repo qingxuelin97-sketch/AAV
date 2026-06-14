@@ -44,6 +44,15 @@ test("mushroom grows small Mario to big", () => {
   assert.equal(game.player.power, "big");
 });
 
+test("the reserve item deploys a usable power-up", () => {
+  const game = makeGame();
+  assert.equal(game.reserve, "mushroom", "starts with a reserve mushroom");
+  const before = game.entities.length;
+  game.useReserve();
+  assert.equal(game.entities.length, before + 1, "spawned the reserved item");
+  assert.equal(game.reserve, null, "reserve is emptied after use");
+});
+
 test("fire flower turns Mario into fire form", () => {
   const game = makeGame();
   const f = new FireFlower(0, 0);

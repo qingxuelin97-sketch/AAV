@@ -339,8 +339,9 @@ export function drawAxe(ctx, box) {
 
 // Bowser — the big spiky boss.
 export function drawBowser(ctx, box, opts = {}) {
-  const { facing = -1, walkFrame = 0, hurt = false, dead = false } = opts;
+  const { facing = -1, walkFrame = 0, hurt = false, dead = false, tint = null } = opts;
   const flip = facing > 0;
+  const box0 = box;
   if (hurt && Math.floor(performance.now() / 60) % 2 === 0) ctx.globalAlpha = 0.5;
   if (dead) {
     ctx.save();
@@ -378,6 +379,30 @@ export function drawBowser(ctx, box, opts = {}) {
 
   ctx.globalAlpha = 1;
   if (dead) ctx.restore();
+
+  // Optional colour tint (e.g. enraged second phase or a variant boss).
+  if (tint && !dead) {
+    ctx.save();
+    ctx.globalAlpha = 0.32;
+    ctx.fillStyle = tint;
+    ctx.fillRect(box0.x, box0.y, box0.w, box0.h);
+    ctx.restore();
+  }
+}
+
+// A thrown hammer (lobbed boss projectile).
+export function drawHammer(ctx, box, t = 0) {
+  const { x, y, w, h } = box;
+  ctx.save();
+  ctx.translate(x + w / 2, y + h / 2);
+  ctx.rotate(t * 14);
+  ctx.fillStyle = "#6b4a2a";
+  ctx.fillRect(-2, -1, 4, h * 0.5); // handle
+  ctx.fillStyle = "#c0c0c0";
+  ctx.fillRect(-w * 0.45, -h * 0.45, w * 0.9, h * 0.4); // head
+  ctx.fillStyle = "#8a8a8a";
+  ctx.fillRect(-w * 0.45, -h * 0.45, w * 0.18, h * 0.4);
+  ctx.restore();
 }
 
 export function drawCoin(ctx, box, t = 0) {

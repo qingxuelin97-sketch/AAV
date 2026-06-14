@@ -27,43 +27,62 @@ function makeGame() {
   return game;
 }
 
-const BOSS_INDEX = LEVELS.findIndex((l) => l.boss);
+const FINAL_INDEX = LEVELS.length - 1; // two-phase Bowser
+const MINI_INDEX = LEVELS.findIndex((l) => l.bossType === "mini");
 
-function loadBoss(game) {
+function loadBoss(game, index = FINAL_INDEX) {
   game.reset();
-  game.loadLevel(BOSS_INDEX);
+  game.loadLevel(index);
   game.state = STATE.PLAYING;
   return game.boss;
 }
 
-test("the final level spawns a boss and uses the boss theme", () => {
+function hitBoss(game, boss) {
+  game.fireballs = [];
+  game.spawnFireball(game.player);
+  const fb = game.fireballs[0];
+  fb.x = boss.x;
+  fb.y = boss.y;
+  boss.invuln = 0; // skip i-frames for the test
+  game.handleFireballCollisions();
+}
+
+test("the final level spawns a two-phase boss with the boss theme", () => {
   const game = makeGame();
   const boss = loadBoss(game);
   assert.ok(boss, "Bowser exists in the boss arena");
   assert.equal(game.themeName, "boss");
-  assert.equal(boss.hp, 5);
+  assert.equal(boss.maxPhase, 2);
+  assert.equal(boss.hp, boss.hpPerPhase);
 });
 
-test("five projectile hits defeat the boss and win the game", () => {
+test("the boss enrages into phase 2 before it can be defeated", () => {
   const game = makeGame();
   const boss = loadBoss(game);
   game.player.setPower("fire");
-  for (let i = 0; i < 5; i++) {
-    game.fireballs = [];
-    game.spawnFireball(game.player);
-    const fb = game.fireballs[0];
-    fb.x = boss.x;
-    fb.y = boss.y;
-    boss.invuln = 0; // skip i-frames for the test
-    game.handleFireballCollisions();
-  }
-  assert.equal(boss.state, "dead", "boss defeated");
-  assert.ok(game.bossDefeated, "defeat sequence triggered");
+  for (let i = 0; i < boss.hpPerPhase; i++) hitBoss(game, boss);
+  assert.equal(boss.state, "alive", "still alive after phase 1");
+  assert.equal(boss.phase, 2, "entered phase 2");
+  assert.ok(boss.enraged, "boss is enraged");
+
+  for (let i = 0; i < boss.hpPerPhase; i++) hitBoss(game, boss);
+  assert.equal(boss.state, "dead", "defeated after both phases");
   assert.equal(game.state, STATE.LEVEL_CLEAR);
 
-  // Celebration then win (boss level is the finale).
   for (let i = 0; i < 300 && game.state !== STATE.WIN; i++) game.update(1 / 60);
-  assert.equal(game.state, STATE.WIN, "clearing the boss wins the game");
+  assert.equal(game.state, STATE.WIN, "beating Bowser wins the game");
+});
+
+test("the mini-boss has less health and advances to the next level", () => {
+  const game = makeGame();
+  const boss = loadBoss(game, MINI_INDEX);
+  assert.equal(boss.maxPhase, 1);
+  assert.equal(boss.hpPerPhase, 3);
+  game.player.setPower("fire");
+  for (let i = 0; i < 3; i++) hitBoss(game, boss);
+  assert.equal(boss.state, "dead");
+  for (let i = 0; i < 300 && game.state === STATE.LEVEL_CLEAR; i++) game.update(1 / 60);
+  assert.ok(game.levelIndex > MINI_INDEX, "advanced past the mini-boss");
 });
 
 test("touching the axe instantly defeats the boss", () => {
