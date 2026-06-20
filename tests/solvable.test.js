@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { Game } from "../public/js/game.js";
 import { STATE, TILE } from "../public/js/constants.js";
 import { LEVELS } from "../public/js/levels.js";
-import { Goomba, Koopa } from "../public/js/entities.js";
+import { Goomba, Koopa, Spiny } from "../public/js/entities.js";
 
 function makeCtx() {
   const ctx = {
@@ -63,7 +63,7 @@ function needJump(p, world, game) {
   }
   // Enemy just ahead.
   for (const e of game.entities) {
-    if (!(e instanceof Goomba || e instanceof Koopa)) continue;
+    if (!(e instanceof Goomba || e instanceof Koopa || e instanceof Spiny)) continue;
     if (e.state === "squashed" || e.state === "frozen" || e.state === "flipped") continue;
     const dx = e.x - (p.x + p.w);
     if (dx > -10 && dx < TILE * 2.4 && Math.abs(e.y - p.y) < TILE * 1.6) return true;

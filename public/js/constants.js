@@ -49,6 +49,7 @@ export const T = {
   // spawn markers (converted to entities at load, then cleared)
   GOOMBA: "g",
   KOOPA: "k",
+  SPINY: "s", // spiked enemy — can't be stomped, needs fire/ice/star/shell
   PIRANHA: "v", // sits in the pipe below this marker
   BOSS: "W", // Bowser
   AXE: "A", // touch to defeat the boss (classic bridge axe)

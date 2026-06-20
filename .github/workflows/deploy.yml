@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - claude/mario-game-fullstack-gtur1x
+      - claude/game-level-optimization-bugs-ecduus
   workflow_dispatch:
 
 permissions:

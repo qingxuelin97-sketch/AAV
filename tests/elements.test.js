@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Game } from "../public/js/game.js";
 import { TILE } from "../public/js/constants.js";
-import { Mushroom, FireFlower, Star, Goomba, PiranhaPlant } from "../public/js/entities.js";
+import { Mushroom, FireFlower, Star, Goomba, Spiny, PiranhaPlant } from "../public/js/entities.js";
 
 function makeCtx() {
   const ctx = {
@@ -102,6 +102,51 @@ test("an emerged piranha plant damages big Mario down to small", () => {
   game.handlePiranhaCollisions();
   assert.equal(game.player.power, "small", "took a hit and shrank");
   assert.ok(game.player.invincible > 0, "got damage i-frames");
+});
+
+test("stomping a Spiny hurts the player (can't be stomped)", () => {
+  const game = makeGame();
+  game.player.setPower("big");
+  const spiny = new Spiny(20, 0);
+  spiny.x = game.player.x;
+  spiny.y = game.player.y;
+  game.player.vy = 200; // coming down on it
+  game.entities.push(spiny);
+  game.handleEnemyCollisions();
+  assert.equal(game.player.power, "small", "spikes shrank big Mario");
+  assert.equal(spiny.state, "walk", "the Spiny is unharmed by the stomp");
+});
+
+test("a fireball flips a Spiny", () => {
+  const game = makeGame();
+  game.player.setPower("fire");
+  const spiny = new Spiny(20, 0);
+  game.entities.push(spiny);
+  game.spawnFireball(game.player);
+  const fb = game.fireballs[0];
+  fb.x = spiny.x;
+  fb.y = spiny.y;
+  game.handleFireballCollisions();
+  assert.equal(spiny.state, "flipped", "fireball knocks the Spiny out");
+  assert.ok(fb.dead, "fireball consumed");
+});
+
+test("an iceball freezes a Spiny, which then shatters safely on touch", () => {
+  const game = makeGame();
+  game.player.setPower("ice");
+  const spiny = new Spiny(20, 0);
+  game.entities.push(spiny);
+  game.spawnFireball(game.player);
+  const fb = game.fireballs[0];
+  fb.x = spiny.x;
+  fb.y = spiny.y;
+  game.handleFireballCollisions();
+  assert.equal(spiny.state, "frozen", "iceball freezes the Spiny");
+  game.player.x = spiny.x;
+  game.player.y = spiny.y;
+  game.handleEnemyCollisions();
+  assert.ok(spiny.dead, "frozen Spiny shatters on contact");
+  assert.ok(game.player.alive, "player unharmed by the frozen Spiny");
 });
 
 test("fireball destroys a goomba", () => {
