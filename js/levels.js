@@ -59,6 +59,10 @@ class LevelBuilder {
   spiny(col, row = this.height - 3) {
     this.set(col, row, T.SPINY);
   }
+  // A winged Koopa that hops in place; stomp it to drop a ground Koopa.
+  para(col, row = this.height - 3) {
+    this.set(col, row, T.PARATROOPA);
+  }
   flag(col) {
     for (let r = 3; r <= this.height - 3; r++) this.set(col, r, T.FLAGPOLE);
     this.set(col, this.height - 2, T.FLAGBASE);
@@ -190,6 +194,7 @@ function world4() {
   [22, 44, 66, 92, 118, 140, 162].forEach((c, i) => b.pit(c, i % 2 ? 3 : 2));
 
   b.set(8, 9, T.QBLOCK_MUSH);
+  b.set(11, 9, T.QBLOCK_LEAF); // ← new: Super Leaf (raccoon tail)
   b.set(14, 12, T.GOOMBA);
   b.pipe(30, 2, true);
   b.set(36, 12, T.GOOMBA);
@@ -382,7 +387,8 @@ function cave1() {
 
   b.set(8, 9, T.QBLOCK_MUSH);
   b.set(10, 9, T.QBLOCK_ICE);
-  b.coins(9, 14, 20);
+  b.set(12, 9, T.QBLOCK_BOOM); // ← new: Boomerang Flower
+  b.coins(9, 16, 20);
 
   b.pipe(34, 2, true);
   b.set(40, 12, T.GOOMBA);
@@ -524,7 +530,124 @@ function sky3() {
 }
 
 // ---------------------------------------------------------------------------
-// World 2-castle — the final, two-phase Bowser battle.
+// World 4-1 — "深渊" the long dark: dense pits, Paratroopas and a Boomerang.
+// ---------------------------------------------------------------------------
+function abyss1() {
+  const w = 212;
+  const b = new LevelBuilder(w);
+  b.ground(0, w - 1);
+  [22, 40, 60, 80, 100, 122, 146, 168, 190].forEach((c, i) => b.pit(c, i % 2 ? 3 : 2));
+
+  b.set(6, 9, T.QBLOCK_MUSH);
+  b.set(8, 9, T.QBLOCK_LEAF);
+  b.set(10, 9, T.QBLOCK_BOOM);
+  b.coins(9, 14, 18);
+
+  b.pipe(30, 3, true);
+  b.set(36, 12, T.KOOPA);
+  b.para(50);
+  b.platform(7, 66, 70, T.HARD);
+  b.coins(6, 66, 70);
+  b.set(72, 9, T.QBLOCK_STAR);
+
+  b.set(90, 12, T.GOOMBA);
+  b.set(92, 12, T.GOOMBA);
+  b.para(110);
+  b.pipe(112, 2, true);
+  b.set(130, 9, T.QBLOCK_ICE);
+  b.set(132, 9, T.QBLOCK_1UP);
+
+  b.set(140, 12, T.KOOPA);
+  b.para(160);
+  b.set(178, 12, T.GOOMBA);
+  b.coins(9, 198, 204);
+  b.spiny(153);
+  b.spiny(197);
+
+  return { name: "4-1", time: 350, bg: "night", flagCol: b.flag(206), tiles: b.toRows(), width: w };
+}
+
+// ---------------------------------------------------------------------------
+// World 4-2 — "熔窟" the deep: cave gauntlet of Spinies + Paratroopas.
+// ---------------------------------------------------------------------------
+function abyss2() {
+  const w = 220;
+  const b = new LevelBuilder(w);
+  b.ground(0, w - 1);
+  [20, 38, 58, 78, 98, 120, 140, 162, 184, 204].forEach((c, i) => b.pit(c, i % 2 ? 3 : 2));
+
+  b.set(6, 9, T.QBLOCK_MUSH);
+  b.set(8, 9, T.QBLOCK_LEAF);
+  b.set(10, 9, T.QBLOCK_MUSH);
+
+  b.pipe(28, 3, true);
+  b.set(34, 12, T.KOOPA);
+  b.para(48);
+  b.platform(8, 66, 68, T.HARD);
+  b.coins(7, 66, 68);
+  b.set(70, 9, T.QBLOCK_BOOM);
+
+  b.set(86, 12, T.GOOMBA);
+  b.set(88, 12, T.GOOMBA);
+  b.pipe(108, 2, true);
+  b.para(130);
+  b.set(150, 9, T.QBLOCK_ICE);
+  b.set(152, 9, T.QBLOCK_STAR);
+
+  b.set(154, 12, T.KOOPA);
+  b.set(166, 9, T.QBLOCK_1UP);
+  b.para(174);
+  b.set(196, 12, T.GOOMBA);
+  b.coins(9, 210, 214);
+  b.spiny(147);
+  b.spiny(191);
+
+  return { name: "4-2", time: 350, bg: "cave", flagCol: b.flag(214), tiles: b.toRows(), width: w };
+}
+
+// ---------------------------------------------------------------------------
+// World 4-3 — "最终冲刺" final ascent: the hardest stage before the castle.
+// ---------------------------------------------------------------------------
+function abyss3() {
+  const w = 228;
+  const b = new LevelBuilder(w);
+  b.ground(0, w - 1);
+  [22, 40, 58, 76, 96, 116, 136, 158, 180, 202].forEach((c, i) => b.pit(c, i % 2 ? 3 : 2));
+
+  b.set(6, 9, T.QBLOCK_MUSH);
+  b.set(8, 9, T.QBLOCK_LEAF);
+  b.set(10, 9, T.QBLOCK_BOOM);
+  b.coins(9, 14, 18);
+
+  b.pipe(32, 3, true);
+  b.set(38, 12, T.KOOPA);
+  b.para(52);
+  // High brick road with a star.
+  b.platform(7, 64, 70, T.BRICK);
+  b.coins(6, 64, 70);
+  b.set(67, 7, T.QBLOCK_STAR);
+
+  b.set(86, 12, T.GOOMBA);
+  b.set(88, 12, T.GOOMBA);
+  b.para(108);
+  b.pipe(126, 2, true);
+  b.set(144, 9, T.QBLOCK_ICE);
+  b.set(146, 9, T.QBLOCK_1UP);
+
+  b.set(150, 12, T.KOOPA);
+  b.set(152, 12, T.KOOPA);
+  b.para(172);
+  b.set(192, 12, T.GOOMBA);
+  b.coins(9, 214, 220);
+  b.spiny(48);
+  b.spiny(103);
+  b.spiny(187);
+
+  return { name: "4-3", time: 350, bg: "dusk", flagCol: b.flag(222), tiles: b.toRows(), width: w };
+}
+
+// ---------------------------------------------------------------------------
+// World 4-castle — the final, three-phase Bowser battle.
 // ---------------------------------------------------------------------------
 function finalBoss() {
   const w = 78;
@@ -575,5 +698,8 @@ export const LEVELS = [
   cave2(),
   fortressBoss(),
   sky3(),
+  abyss1(),
+  abyss2(),
+  abyss3(),
   finalBoss(),
 ];

@@ -9,12 +9,16 @@ import {
   Goomba,
   Koopa,
   Spiny,
+  Paratroopa,
   PiranhaPlant,
   Mushroom,
   FireFlower,
   IceFlower,
+  SuperLeaf,
+  BoomerangFlower,
   Star,
   Fireball,
+  Boomerang,
   Bowser,
   BossFireball,
   Axe,
@@ -54,12 +58,18 @@ const MUSIC_FOR_BG = { day: "overworld", dusk: "overworld", night: "night", snow
 const BOSS_PRESETS = {
   mini: { variant: "mini", name: "锤子龟王", tint: "#4aa3ff", hp: 4, phases: 1, speed: 95 },
   fortress: { variant: "bowser", name: "暗影库巴", tint: "#8a3fd0", hp: 6, phases: 1, speed: 110 },
-  bowser: { variant: "bowser", name: "库巴", hp: 6, phases: 2, speed: 90 },
+  bowser: { variant: "bowser", name: "库巴", hp: 5, phases: 3, speed: 95 },
 };
 
-const ENEMY = (e) => e instanceof Goomba || e instanceof Koopa || e instanceof Spiny;
+const ENEMY = (e) =>
+  e instanceof Goomba || e instanceof Koopa || e instanceof Spiny || e instanceof Paratroopa;
 const ITEM = (e) =>
-  e instanceof Mushroom || e instanceof FireFlower || e instanceof IceFlower || e instanceof Star;
+  e instanceof Mushroom ||
+  e instanceof FireFlower ||
+  e instanceof IceFlower ||
+  e instanceof SuperLeaf ||
+  e instanceof BoomerangFlower ||
+  e instanceof Star;
 
 export class Game {
   constructor(canvas, input, audio, hooks = {}) {
@@ -102,6 +112,8 @@ export class Game {
     const y = this.player.y - TILE;
     if (this.reserve === "fire") this.entities.push(new FireFlower(x, y));
     else if (this.reserve === "ice") this.entities.push(new IceFlower(x, y));
+    else if (this.reserve === "leaf") this.entities.push(new SuperLeaf(x, y));
+    else if (this.reserve === "boomerang") this.entities.push(new BoomerangFlower(x, y));
     else this.entities.push(new Mushroom(x, y, false));
     this.reserve = null;
     this.audio.pipe();
@@ -152,6 +164,9 @@ export class Game {
         } else if (ch === T.SPINY) {
           this.entities.push(new Spiny(col, row));
           this.world.setTile(col, row, T.EMPTY);
+        } else if (ch === T.PARATROOPA) {
+          this.entities.push(new Paratroopa(col, row));
+          this.world.setTile(col, row, T.EMPTY);
         } else if (ch === T.PIRANHA) {
           this.entities.push(new PiranhaPlant(col, row + 1));
           this.world.setTile(col, row, T.EMPTY);
@@ -168,6 +183,7 @@ export class Game {
     }
 
     this.fireballs = [];
+    this.boomerangs = [];
     this.bossFireballs = [];
     this.particles = [];
     this.floatingTexts = [];
@@ -278,6 +294,59 @@ export class Game {
     return true;
   }
 
+  // Throw a single boomerang (only one in flight at a time, like the games).
+  spawnBoomerang(player) {
+    if (this.boomerangs.some((b) => !b.dead)) return false;
+    const dir = player.facing;
+    const x = dir > 0 ? player.x + player.w - 6 : player.x - 8;
+    const y = player.y + player.h * 0.35;
+    this.boomerangs.push(new Boomerang(x, y, dir, player));
+    this.audio.fireball();
+    return true;
+  }
+
+  // Tail-spin attack: flip nearby enemies, bump/break adjacent blocks, and
+  // chip the boss if it's right next to you. Uses a short hitbox in front.
+  tailSpin(player) {
+    const reach = 16;
+    const box = {
+      x: player.x - reach,
+      y: player.y,
+      w: player.w + reach * 2,
+      h: player.h,
+    };
+    const hit = (e) =>
+      box.x < e.x + e.w && box.x + box.w > e.x && box.y < e.y + e.h && box.y + box.h > e.y;
+    for (const e of this.entities) {
+      if (e.dead) continue;
+      if (ENEMY(e) && e.state !== "flipped" && e.state !== "frozen" && hit(e)) {
+        if (e instanceof Spiny) continue; // spikes resist a tail whip
+        const dir = e.cx < player.cx ? -1 : 1;
+        e.flip(dir, this);
+        this.addScore(200);
+        this.popText(e.cx, e.y, "200", "#ffd23f");
+      } else if (e.kind === "piranha" && e.active && hit(e)) {
+        e.dead = true;
+        this.addScore(200);
+        this.popText(e.cx, e.y, "200", "#ffd23f");
+      }
+    }
+    // Whack a brick directly beside Mario when big.
+    const side = player.facing > 0 ? player.x + player.w + 2 : player.x - 2;
+    const col = Math.floor(side / TILE);
+    const row = Math.floor((player.y + player.h * 0.4) / TILE);
+    if (this.world.tile(col, row) === T.BRICK && player.isBig) {
+      this.world.setTile(col, row, T.EMPTY);
+      this.audio.break_();
+      this.addScore(50);
+      this.world._spawnDebris(col, row, this);
+    }
+    // Right next to the boss? A small chip of damage.
+    if (this.boss && this.boss.state === "alive" && hit(this.boss)) {
+      if (this.boss.hit(this) && this.boss.state === "dead") this.defeatBoss();
+    }
+  }
+
   _bossDir(boss, player) {
     return player ? Math.sign(player.cx - boss.cx) || -1 : boss.facing;
   }
@@ -314,6 +383,17 @@ export class Game {
       this.bossFireballs.push(new BossFireball(x, y, dir * (150 + i * 80), -360 - i * 30, "hammer"));
     }
     this.audio.bump();
+  }
+
+  // Final-phase fury: a curtain of fireballs raining down around the player.
+  bossRain(boss, player) {
+    const cx = player ? player.cx : boss.cx;
+    for (let i = 0; i < 5; i++) {
+      const x = cx + (i - 2) * 70 + (Math.random() * 30 - 15);
+      this.bossFireballs.push(new BossFireball(x, 8, (Math.random() * 60 - 30), 220, "fire"));
+    }
+    this.audio.bossFire();
+    this.addShake(4);
   }
 
   // Two ground shockwaves travelling outward from a landing slam.
@@ -414,11 +494,13 @@ export class Game {
     }
 
     for (const fb of this.fireballs) fb.update(dt, world);
+    for (const bm of this.boomerangs) bm.update(dt, world);
     for (const bf of this.bossFireballs) bf.update(dt, world);
 
     this.handleEnemyCollisions();
     this.handleShellCollisions();
     this.handleFireballCollisions();
+    this.handleBoomerangCollisions();
     this.handlePiranhaCollisions();
     this.handleItemCollisions();
     this.handleBossCollisions();
@@ -433,6 +515,7 @@ export class Game {
 
     this.entities = this.entities.filter((e) => !e.dead);
     this.fireballs = this.fireballs.filter((f) => !f.dead);
+    this.boomerangs = this.boomerangs.filter((b) => !b.dead);
     this.bossFireballs = this.bossFireballs.filter((f) => !f.dead);
     this.particles = this.particles.filter((p) => !p.dead);
     this.floatingTexts = this.floatingTexts.filter((f) => !f.dead);
@@ -491,7 +574,17 @@ export class Game {
       const pBottom = p.y + p.h;
       const stomp = p.vy > 0 && pBottom - e.y < e.h * 0.7;
 
-      if (e instanceof Spiny) {
+      if (e instanceof Paratroopa) {
+        // Stomp shears the wings → it drops as a walking Koopa you can finish.
+        if (stomp) {
+          this.entities.push(e.deWing());
+          p.vy = STOMP_BOUNCE;
+          this.addScore(100);
+          this.popText(e.cx, e.y, "100");
+        } else {
+          p.damage(this);
+        }
+      } else if (e instanceof Spiny) {
         // Spiked back: jumping on it hurts. Bounce off a little if stomped so
         // you aren't glued to the spikes, then take the hit.
         if (stomp) p.vy = STOMP_BOUNCE * 0.5;
@@ -595,6 +688,39 @@ export class Game {
     }
   }
 
+  // Boomerangs flip enemies (both on the way out and back) and chip the boss,
+  // but pass through rather than popping, so one throw can hit several foes.
+  handleBoomerangCollisions() {
+    for (const bm of this.boomerangs) {
+      if (bm.dead) continue;
+      if (this.boss && this.boss.state === "alive" && bm.intersects(this.boss)) {
+        if (!(this.boss.invuln > 0) && this.boss.hit(this)) {
+          this.popText(this.boss.cx, this.boss.y, "HIT!", "#ff5a5f");
+          if (this.boss.state === "dead") this.defeatBoss();
+        }
+      }
+      for (const e of this.entities) {
+        if (e.dead) continue;
+        if (
+          ENEMY(e) &&
+          e.state !== "squashed" &&
+          e.state !== "flipped" &&
+          e.state !== "frozen" &&
+          bm.intersects(e)
+        ) {
+          if (e instanceof Spiny) continue; // spikes shrug off a boomerang
+          e.flip(bm.vx > 0 ? 1 : -1, this);
+          this.addScore(100);
+          this.popText(e.cx, e.y, "100");
+        } else if (e.kind === "piranha" && e.active && bm.intersects(e)) {
+          e.dead = true;
+          this.addScore(200);
+          this.popText(e.cx, e.y, "200", "#ffd23f");
+        }
+      }
+    }
+  }
+
   // Player vs boss, boss fire vs player, and the bridge axe.
   handleBossCollisions() {
     const p = this.player;
@@ -665,6 +791,27 @@ export class Game {
     }
   }
 
+  // Power-up forms a flower/leaf grants, with a colour + tooltip. Picking up a
+  // form you already have stashes a spare in the reserve box instead.
+  static POWERUPS = {
+    fire: { color: "#ff8a3a", toast: "🌸 火焰：按 X 发射火球，是 Boss 的主要输出" },
+    ice: { color: "#7ec8ff", toast: "🧊 冰冻：按 X 冻住敌人(碎裂得金币)，可冻僵 Boss" },
+    tail: { color: "#e0902f", toast: "🍃 狸猫：跳跃中按住跳=滑翔，按 X 用尾巴扫飞敌人" },
+    boomerang: { color: "#9fb6ff", toast: "🪃 回旋镖：按 X 投掷，去回都能击中敌人，克制 Boss" },
+  };
+
+  // Grant a flower/leaf form (or stash a spare if already held).
+  applyPowerup(type, e) {
+    const p = this.player;
+    const cfg = Game.POWERUPS[type];
+    if (p.power === type && !this.reserve) this.reserve = type; // stash spare
+    p.setPower(type);
+    this.audio.powerup();
+    this.addScore(1000);
+    this.popText(e.cx, e.y, "1000", cfg.color);
+    this.showToast(cfg.toast);
+  }
+
   handleItemCollisions() {
     const p = this.player;
     if (!p.alive) return;
@@ -689,19 +836,13 @@ export class Game {
         this.addScore(1000);
         this.popText(e.cx, e.y, "1000", "#fff");
       } else if (e instanceof FireFlower) {
-        if (p.power === "fire" && !this.reserve) this.reserve = "fire";
-        p.setPower("fire");
-        this.audio.powerup();
-        this.addScore(1000);
-        this.popText(e.cx, e.y, "1000", "#ff8a3a");
-        this.showToast("🌸 火焰：按 X 发射火球，是 Boss 的主要输出");
+        this.applyPowerup("fire", e);
       } else if (e instanceof IceFlower) {
-        if (p.power === "ice" && !this.reserve) this.reserve = "ice";
-        p.setPower("ice");
-        this.audio.powerup();
-        this.addScore(1000);
-        this.popText(e.cx, e.y, "1000", "#7ec8ff");
-        this.showToast("🧊 冰冻：按 X 冻住敌人(碎裂得金币)，可冻僵 Boss");
+        this.applyPowerup("ice", e);
+      } else if (e instanceof SuperLeaf) {
+        this.applyPowerup("tail", e);
+      } else if (e instanceof BoomerangFlower) {
+        this.applyPowerup("boomerang", e);
       } else if (e instanceof Star) {
         p.giveStar();
         this.audio.setFast(true);
@@ -887,6 +1028,7 @@ export class Game {
     }
     for (const e of this.entities) e.draw(ctx);
     for (const fb of this.fireballs) fb.draw(ctx);
+    for (const bm of this.boomerangs) bm.draw(ctx);
     for (const bf of this.bossFireballs) bf.draw(ctx);
     for (const c of this.coinPops) c.draw(ctx);
     for (const p of this.particles) p.draw(ctx);

@@ -26,6 +26,10 @@ export const FIREBALL_SPEED = 380;
 export const FIREBALL_BOUNCE = -360;
 export const FREEZE_TIME = 5; // seconds an enemy stays frozen
 export const BOSS_HP = 5;
+export const TAIL_GLIDE_VY = 95; // capped fall speed while gliding with the leaf
+export const TAIL_SPIN_TIME = 0.42; // duration of a tail-spin attack
+export const BOOMERANG_SPEED = 430;
+export const BOOMERANG_RANGE = 230; // px travelled before it turns back
 
 // Tile legend ---------------------------------------------------------------
 export const T = {
@@ -35,6 +39,8 @@ export const T = {
   QBLOCK_COIN: "?",
   QBLOCK_MUSH: "M", // mushroom if small, fire flower if big
   QBLOCK_ICE: "I", // mushroom if small, ice flower if big
+  QBLOCK_LEAF: "T", // mushroom if small, Super Leaf if big
+  QBLOCK_BOOM: "Y", // mushroom if small, Boomerang Flower if big
   QBLOCK_STAR: "S",
   QBLOCK_1UP: "1",
   USED: "U",
@@ -50,6 +56,7 @@ export const T = {
   GOOMBA: "g",
   KOOPA: "k",
   SPINY: "s", // spiked enemy — can't be stomped, needs fire/ice/star/shell
+  PARATROOPA: "p", // winged Koopa that hops; stomp removes wings
   PIRANHA: "v", // sits in the pipe below this marker
   BOSS: "W", // Bowser
   AXE: "A", // touch to defeat the boss (classic bridge axe)
@@ -61,6 +68,8 @@ export const SOLID = new Set([
   T.QBLOCK_COIN,
   T.QBLOCK_MUSH,
   T.QBLOCK_ICE,
+  T.QBLOCK_LEAF,
+  T.QBLOCK_BOOM,
   T.QBLOCK_STAR,
   T.QBLOCK_1UP,
   T.USED,
@@ -76,6 +85,8 @@ export const QBLOCKS = new Set([
   T.QBLOCK_COIN,
   T.QBLOCK_MUSH,
   T.QBLOCK_ICE,
+  T.QBLOCK_LEAF,
+  T.QBLOCK_BOOM,
   T.QBLOCK_STAR,
   T.QBLOCK_1UP,
 ]);

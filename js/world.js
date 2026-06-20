@@ -2,7 +2,16 @@
 // and block-bump interactions (question blocks, breakable bricks, coins).
 
 import { TILE, SOLID, QBLOCKS, T } from "./constants.js";
-import { Mushroom, FireFlower, IceFlower, Star, Particle, FloatingText } from "./entities.js";
+import {
+  Mushroom,
+  FireFlower,
+  IceFlower,
+  SuperLeaf,
+  BoomerangFlower,
+  Star,
+  Particle,
+  FloatingText,
+} from "./entities.js";
 
 export class World {
   constructor(def) {
@@ -53,6 +62,20 @@ export class World {
       } else if (ch === T.QBLOCK_ICE) {
         if (player.isBig) {
           game.entities.push(new IceFlower(col * TILE + 3, row * TILE));
+        } else {
+          game.entities.push(new Mushroom(col * TILE + 3, row * TILE, false));
+        }
+        game.audio.powerup();
+      } else if (ch === T.QBLOCK_LEAF) {
+        if (player.isBig) {
+          game.entities.push(new SuperLeaf(col * TILE + 3, row * TILE));
+        } else {
+          game.entities.push(new Mushroom(col * TILE + 3, row * TILE, false));
+        }
+        game.audio.powerup();
+      } else if (ch === T.QBLOCK_BOOM) {
+        if (player.isBig) {
+          game.entities.push(new BoomerangFlower(col * TILE + 3, row * TILE));
         } else {
           game.entities.push(new Mushroom(col * TILE + 3, row * TILE, false));
         }
