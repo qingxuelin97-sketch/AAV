@@ -296,6 +296,8 @@ function drawTile(ctx, ch, x, y, world, col, row, time) {
     case T.QBLOCK_COIN:
     case T.QBLOCK_MUSH:
     case T.QBLOCK_ICE:
+    case T.QBLOCK_LEAF:
+    case T.QBLOCK_BOOM:
     case T.QBLOCK_STAR:
     case T.QBLOCK_1UP:
       questionBlock(ctx, x, y, time);

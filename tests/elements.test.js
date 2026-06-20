@@ -2,7 +2,18 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Game } from "../public/js/game.js";
 import { TILE } from "../public/js/constants.js";
-import { Mushroom, FireFlower, Star, Goomba, Spiny, PiranhaPlant } from "../public/js/entities.js";
+import {
+  Mushroom,
+  FireFlower,
+  SuperLeaf,
+  BoomerangFlower,
+  Star,
+  Goomba,
+  Spiny,
+  Paratroopa,
+  PiranhaPlant,
+} from "../public/js/entities.js";
+import { TAIL_GLIDE_VY } from "../public/js/constants.js";
 
 function makeCtx() {
   const ctx = {
@@ -147,6 +158,70 @@ test("an iceball freezes a Spiny, which then shatters safely on touch", () => {
   game.handleEnemyCollisions();
   assert.ok(spiny.dead, "frozen Spiny shatters on contact");
   assert.ok(game.player.alive, "player unharmed by the frozen Spiny");
+});
+
+test("the Super Leaf grants the raccoon tail form", () => {
+  const game = makeGame();
+  const leaf = new SuperLeaf(0, 0);
+  overlap(leaf, game.player);
+  game.entities.push(leaf);
+  game.handleItemCollisions();
+  assert.equal(game.player.power, "tail");
+  assert.ok(game.player.isBig, "tail form is big-sized");
+});
+
+test("the tail glide caps the player's fall speed", () => {
+  const game = makeGame();
+  game.player.setPower("tail");
+  game.player.onGround = false;
+  game.player.vy = 600; // plummeting
+  const input = { state: { jump: true, left: false, right: false, run: false }, consume: () => false };
+  game.player.update(1 / 60, input, game.world, game);
+  assert.ok(game.player.vy <= TAIL_GLIDE_VY + 1, "glide slowed the fall");
+});
+
+test("the Boomerang Flower grants the boomerang form and throws return-hitting boomerangs", () => {
+  const game = makeGame();
+  const flower = new BoomerangFlower(0, 0);
+  overlap(flower, game.player);
+  game.entities.push(flower);
+  game.handleItemCollisions();
+  assert.equal(game.player.power, "boomerang");
+
+  assert.equal(game.spawnBoomerang(game.player), true, "throws one");
+  assert.equal(game.spawnBoomerang(game.player), false, "only one boomerang at a time");
+
+  const goomba = new Goomba(20, 0);
+  game.entities.push(goomba);
+  const bm = game.boomerangs[0];
+  bm.x = goomba.x;
+  bm.y = goomba.y;
+  game.handleBoomerangCollisions();
+  assert.equal(goomba.state, "flipped", "boomerang knocks the enemy out");
+  assert.ok(!bm.dead, "boomerang passes through (does not pop on a hit)");
+});
+
+test("a tail-spin flips a nearby enemy", () => {
+  const game = makeGame();
+  game.player.setPower("tail");
+  const goomba = new Goomba(0, 0);
+  goomba.x = game.player.x + game.player.w + 4;
+  goomba.y = game.player.y;
+  game.entities.push(goomba);
+  game.tailSpin(game.player);
+  assert.equal(goomba.state, "flipped", "tail whip knocked it away");
+});
+
+test("stomping a Paratroopa shears its wings into a walking Koopa", () => {
+  const game = makeGame();
+  const para = new Paratroopa(20, 0);
+  para.x = game.player.x;
+  para.y = game.player.y + 12; // sitting just below Mario's feet
+  game.player.vy = 200; // descending onto it
+  game.entities.push(para);
+  game.handleEnemyCollisions();
+  assert.ok(para.dead, "the winged form is removed");
+  assert.ok(game.entities.some((e) => e.constructor.name === "Koopa"), "a ground Koopa dropped");
 });
 
 test("fireball destroys a goomba", () => {

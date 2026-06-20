@@ -47,26 +47,30 @@ function hitBoss(game, boss) {
   game.handleFireballCollisions();
 }
 
-test("the final level spawns a two-phase boss with the boss theme", () => {
+test("the final level spawns a three-phase boss with the boss theme", () => {
   const game = makeGame();
   const boss = loadBoss(game);
   assert.ok(boss, "Bowser exists in the boss arena");
   assert.equal(game.themeName, "boss");
-  assert.equal(boss.maxPhase, 2);
+  assert.equal(boss.maxPhase, 3);
   assert.equal(boss.hp, boss.hpPerPhase);
 });
 
-test("the boss enrages into phase 2 before it can be defeated", () => {
+test("the boss rages through every phase before it can be defeated", () => {
   const game = makeGame();
   const boss = loadBoss(game);
   game.player.setPower("fire");
-  for (let i = 0; i < boss.hpPerPhase; i++) hitBoss(game, boss);
-  assert.equal(boss.state, "alive", "still alive after phase 1");
-  assert.equal(boss.phase, 2, "entered phase 2");
-  assert.ok(boss.enraged, "boss is enraged");
+
+  // Each phase but the last must enrage and advance, never dying early.
+  for (let phase = 1; phase < boss.maxPhase; phase++) {
+    for (let i = 0; i < boss.hpPerPhase; i++) hitBoss(game, boss);
+    assert.equal(boss.state, "alive", `still alive after phase ${phase}`);
+    assert.equal(boss.phase, phase + 1, `entered phase ${phase + 1}`);
+    assert.ok(boss.enraged, "boss is enraged");
+  }
 
   for (let i = 0; i < boss.hpPerPhase; i++) hitBoss(game, boss);
-  assert.equal(boss.state, "dead", "defeated after both phases");
+  assert.equal(boss.state, "dead", "defeated after the final phase");
   assert.equal(game.state, STATE.LEVEL_CLEAR);
 
   for (let i = 0; i < 300 && game.state !== STATE.WIN; i++) game.update(1 / 60);

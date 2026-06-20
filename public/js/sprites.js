@@ -54,6 +54,8 @@ export function drawMario(ctx, box, opts = {}) {
     invincible = false,
     star = false,
     skid = false,
+    gliding = false,
+    spinning = false,
   } = opts;
   const flip = facing < 0;
 
@@ -69,8 +71,27 @@ export function drawMario(ctx, box, opts = {}) {
     cap = "#7ec8ff";
     overall = PAL.white;
     shirt = "#7ec8ff";
+  } else if (power === "tail") {
+    cap = "#d98a3a"; // raccoon tan
+    overall = PAL.white;
+    shirt = "#d98a3a";
+  } else if (power === "boomerang") {
+    cap = "#e8e8e8";
+    overall = "#2a4fd6";
+    shirt = "#e8e8e8";
   }
   const flowerForm = power === "fire" || power === "ice";
+
+  // Raccoon tail behind Mario (leaf form): swishes while gliding/spinning.
+  if (power === "tail") {
+    const swish = gliding || spinning ? 0.06 : 0;
+    fr(ctx, box, 0.02, 0.5 - swish, 0.16, 0.22, "#d98a3a", flip); // tail base
+    fr(ctx, box, -0.02, 0.46 - swish, 0.1, 0.12, "#8a5520", flip); // tail tip
+    fr(ctx, box, 0.05, 0.54 - swish, 0.1, 0.05, "#fff3e0", flip); // tail stripe
+    // raccoon ears on the cap
+    fr(ctx, box, 0.24, -0.02, 0.1, 0.07, "#8a5520", flip);
+    fr(ctx, box, 0.62, -0.02, 0.1, 0.07, "#8a5520", flip);
+  }
   if (star) {
     const k = Math.floor(performance.now() / 80) % 4;
     const cycle = ["#ff3b3b", "#ffd23f", "#5fe06b", "#5aa9ff"][k];
@@ -260,6 +281,35 @@ export function drawKoopa(ctx, box, opts = {}) {
 }
 
 // --------------------------------------------------------------------------
+// Paratroopa — a Koopa with flapping white wings (drawn red-shelled so it
+// reads as distinct from a ground Koopa).
+// --------------------------------------------------------------------------
+export function drawParatroopa(ctx, box, opts = {}) {
+  const { walkFrame = 0, facing = 1 } = opts;
+  const flip = facing < 0;
+  // Flapping wing behind the shell.
+  const up = walkFrame ? 0.0 : 0.12;
+  fr(ctx, box, 0.04, 0.28 - up, 0.2, 0.1, PAL.white, flip);
+  fr(ctx, box, 0.0, 0.34 - up, 0.16, 0.12, PAL.white, flip);
+  fr(ctx, box, 0.06, 0.28 - up, 0.16, 0.04, "#cfe2ff", flip);
+  // Red shell body
+  fr(ctx, box, 0.18, 0.26, 0.64, 0.52, "#a8211c", flip);
+  fr(ctx, box, 0.22, 0.3, 0.54, 0.42, "#e23a2f", flip);
+  fr(ctx, box, 0.28, 0.36, 0.4, 0.26, "#ff8a82", flip); // highlight
+  fr(ctx, box, 0.18, 0.7, 0.64, 0.09, "#7a1410", flip); // bottom shade
+  fr(ctx, box, 0.5, 0.4, 0.2, 0.34, "#f0d68a", flip); // belly
+  // Head
+  fr(ctx, box, 0.6, 0.1, 0.3, 0.28, "#f5d000", flip);
+  fr(ctx, box, 0.6, 0.1, 0.3, 0.07, "#ffe24a", flip);
+  fr(ctx, box, 0.82, 0.19, 0.08, 0.08, PAL.white, flip);
+  fr(ctx, box, 0.84, 0.2, 0.05, 0.06, PAL.black, flip);
+  fr(ctx, box, 0.6, 0.3, 0.3, 0.06, "#d9a066", flip); // beak
+  // Feet
+  fr(ctx, box, 0.28, 0.82, 0.22, 0.16, "#e0b800", flip);
+  fr(ctx, box, 0.62, 0.82, 0.22, 0.16, "#e0b800", flip);
+}
+
+// --------------------------------------------------------------------------
 // Piranha Plant
 // --------------------------------------------------------------------------
 export function drawPiranha(ctx, box, opts = {}) {
@@ -310,6 +360,85 @@ export function drawFireFlower(ctx, box) {
   fr(ctx, box, 0.32, 0.22, 0.36, 0.26, "#ffe87a");
   fr(ctx, box, 0.4, 0.28, 0.06, 0.08, PAL.black);
   fr(ctx, box, 0.56, 0.28, 0.06, 0.08, PAL.black);
+}
+
+// Super Leaf — an autumn-brown leaf with veins (grants the raccoon tail).
+export function drawSuperLeaf(ctx, box, t = 0) {
+  const { x, y, w, h } = box;
+  ctx.save();
+  ctx.translate(x + w / 2, y + h / 2);
+  ctx.rotate(Math.sin(t * 4) * 0.12);
+  ctx.fillStyle = "#8a5520";
+  ctx.fillRect(-1, h * 0.1, 2, h * 0.4); // stem
+  // three lobes of the leaf
+  ctx.fillStyle = "#e0902f";
+  for (const dx of [-w * 0.28, 0, w * 0.28]) {
+    ctx.beginPath();
+    ctx.moveTo(dx, h * 0.12);
+    ctx.lineTo(dx - w * 0.18, -h * 0.18);
+    ctx.lineTo(dx, -h * 0.42);
+    ctx.lineTo(dx + w * 0.18, -h * 0.18);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.fillStyle = "#f6c45a"; // highlight
+  ctx.fillRect(-w * 0.04, -h * 0.34, w * 0.08, h * 0.36);
+  ctx.strokeStyle = "#8a5520";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, h * 0.12);
+  ctx.lineTo(0, -h * 0.36);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Boomerang Flower — a flower whose petals are little boomerangs.
+export function drawBoomerangFlower(ctx, box, t = 0) {
+  fr(ctx, box, 0.44, 0.55, 0.12, 0.45, "#2e9c2e"); // stem
+  fr(ctx, box, 0.22, 0.6, 0.2, 0.1, "#2e9c2e");
+  fr(ctx, box, 0.58, 0.6, 0.2, 0.1, "#2e9c2e");
+  const { x, y, w, h } = box;
+  ctx.save();
+  ctx.translate(x + w / 2, y + h * 0.3);
+  ctx.rotate(t * 2);
+  ctx.fillStyle = "#e8e8ec";
+  for (let i = 0; i < 4; i++) {
+    ctx.rotate(Math.PI / 2);
+    ctx.beginPath();
+    ctx.moveTo(0, -h * 0.12);
+    ctx.lineTo(w * 0.22, -h * 0.18);
+    ctx.lineTo(w * 0.16, -h * 0.34);
+    ctx.lineTo(0, -h * 0.26);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.fillStyle = "#3a5cd0";
+  ctx.beginPath();
+  ctx.arc(0, 0, Math.min(w, h) * 0.16, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// A thrown boomerang — a spinning white "V".
+export function drawBoomerang(ctx, box, t = 0) {
+  const { x, y, w, h } = box;
+  ctx.save();
+  ctx.translate(x + w / 2, y + h / 2);
+  ctx.rotate(t * 22);
+  ctx.fillStyle = "#f2f2f5";
+  ctx.strokeStyle = "#c23a2a";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-w * 0.5, -h * 0.1);
+  ctx.lineTo(0, -h * 0.5);
+  ctx.lineTo(h * 0.15, -h * 0.2);
+  ctx.lineTo(w * 0.5, h * 0.35);
+  ctx.lineTo(h * 0.1, h * 0.2);
+  ctx.lineTo(-h * 0.2, h * 0.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
 }
 
 export function drawStar(ctx, box, t = 0) {

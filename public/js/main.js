@@ -40,8 +40,8 @@ const hud = {
   reserve: $("hud-reserve"),
 };
 
-const POWER_LABEL = { small: "小", big: "大", fire: "🌸", ice: "🧊" };
-const RESERVE_LABEL = { mushroom: "🍄", fire: "🌸", ice: "🧊" };
+const POWER_LABEL = { small: "小", big: "大", fire: "🌸", ice: "🧊", tail: "🍃", boomerang: "🪃" };
+const RESERVE_LABEL = { mushroom: "🍄", fire: "🌸", ice: "🧊", leaf: "🍃", boomerang: "🪃" };
 
 let lastStats = null;
 let submittedId = null;
@@ -96,7 +96,7 @@ function resetSubmitUI(btn, nameInput) {
 }
 
 // ---- Level select ---------------------------------------------------------
-const LEVEL_EMOJI = { day: "☀️", dusk: "🌆", night: "🌙", snow: "❄️", castle: "🏰" };
+const LEVEL_EMOJI = { day: "☀️", dusk: "🌆", night: "🌙", snow: "❄️", cave: "🕳️", castle: "🏰" };
 
 function buildLevelGrid() {
   const grid = $("level-grid");

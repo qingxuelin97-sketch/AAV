@@ -22,6 +22,10 @@ import {
   FIREBALL_BOUNCE,
   FREEZE_TIME,
   BOSS_HP,
+  TAIL_GLIDE_VY,
+  TAIL_SPIN_TIME,
+  BOOMERANG_SPEED,
+  BOOMERANG_RANGE,
 } from "./constants.js";
 import * as Sprites from "./sprites.js";
 
@@ -129,7 +133,7 @@ class Body {
 export class Player extends Body {
   constructor(x, y) {
     super(x, y, 22, 28);
-    this.power = "small"; // small | big | fire
+    this.power = "small"; // small | big | fire | ice | tail | boomerang
     this.facing = 1;
     this.walkTimer = 0;
     this.walkFrame = 0;
@@ -145,6 +149,14 @@ export class Player extends Body {
     this.squashTimer = 0;
     this._wasGround = false;
     this._dustT = 0;
+    this.spinTimer = 0; // tail-spin attack window
+    this.spinCooldown = 0;
+    this.gliding = false; // leaf slow-fall this frame (for the draw + dust)
+  }
+
+  // Forms that throw/act on the "run" button instead of just running.
+  get armed() {
+    return this.power === "fire" || this.power === "ice" || this.power === "boomerang";
   }
 
   get isBig() {
@@ -189,6 +201,9 @@ export class Player extends Body {
       if (this.starTime <= 0) game.onStarEnd?.();
     }
     if (this.fireCooldown > 0) this.fireCooldown -= dt;
+    if (this.spinCooldown > 0) this.spinCooldown -= dt;
+    if (this.spinTimer > 0) this.spinTimer -= dt;
+    this.gliding = false;
 
     this.skid = false;
 
@@ -215,9 +230,19 @@ export class Player extends Body {
         else if (this.vx < 0) this.vx = Math.min(0, this.vx + f);
       }
 
-      // Throw a fireball (fire Mario only).
-      if (this.power === "fire" && this.fireCooldown <= 0 && input.consume("run")) {
-        if (game.spawnFireball(this)) this.fireCooldown = 0.28;
+      // The "run" button doubles as the action button for armed forms:
+      // fire/ice throw a ball, boomerang throws a boomerang, leaf tail-spins.
+      if (this.fireCooldown <= 0 && input.consume("run")) {
+        if (this.armed && (this.power === "fire" || this.power === "ice")) {
+          if (game.spawnFireball(this)) this.fireCooldown = 0.28;
+        } else if (this.power === "boomerang") {
+          if (game.spawnBoomerang(this)) this.fireCooldown = 0.25;
+        } else if (this.power === "tail" && this.spinCooldown <= 0) {
+          this.spinTimer = TAIL_SPIN_TIME;
+          this.spinCooldown = 0.5;
+          game.tailSpin?.(this);
+          game.audio.kick();
+        }
       }
 
       // Jump with coyote time + input buffering + variable height.
@@ -245,6 +270,18 @@ export class Player extends Body {
     }
 
     this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt);
+
+    // Leaf glide: wag the tail (hold jump) while falling to drift down slowly.
+    if (
+      this.power === "tail" &&
+      this.controllable &&
+      !this.onGround &&
+      this.vy > 0 &&
+      input.state.jump
+    ) {
+      if (this.vy > TAIL_GLIDE_VY) this.vy = TAIL_GLIDE_VY;
+      this.gliding = true;
+    }
 
     this.x += this.vx * dt;
     collideX(this, world);
@@ -308,6 +345,13 @@ export class Player extends Body {
     const cx = this.x + this.w / 2;
     const feet = this.y + this.h;
     ctx.save();
+    // Tail-spin: whirl the whole sprite around its centre.
+    if (this.spinTimer > 0) {
+      const mid = this.y + this.h / 2;
+      ctx.translate(cx, mid);
+      ctx.rotate(this.facing * (1 - this.spinTimer / TAIL_SPIN_TIME) * Math.PI * 2);
+      ctx.translate(-cx, -mid);
+    }
     ctx.translate(cx, feet);
     ctx.scale(sx, sy);
     ctx.translate(-cx, -feet);
@@ -322,6 +366,8 @@ export class Player extends Body {
         invincible: this.invincible > 0,
         star: this.starTime > 0,
         skid: this.skid,
+        gliding: this.gliding,
+        spinning: this.spinTimer > 0,
       }
     );
     ctx.restore();
@@ -725,6 +771,51 @@ export class IceFlower extends Body {
   }
 }
 
+// Super Leaf — grants the raccoon tail (glide + tail-spin). It flutters as it
+// emerges from a block, like the classic SMB3 leaf.
+export class SuperLeaf extends Body {
+  constructor(x, y) {
+    super(x, y, 26, 24);
+    this.kind = "leaf";
+    this.emerging = TILE;
+    this.t = 0;
+  }
+  update(dt) {
+    this.t += dt;
+    if (this.emerging > 0) {
+      const rise = 44 * dt;
+      this.y -= rise;
+      this.emerging -= rise;
+    } else {
+      // gentle fluttering bob once it has popped out
+      this.x += Math.sin(this.t * 6) * 18 * dt;
+    }
+  }
+  draw(ctx) {
+    Sprites.drawSuperLeaf(ctx, { x: this.x, y: this.y, w: this.w, h: this.h }, this.t);
+  }
+}
+
+export class BoomerangFlower extends Body {
+  constructor(x, y) {
+    super(x, y, 26, 26);
+    this.kind = "boomerangflower";
+    this.emerging = TILE;
+    this.t = 0;
+  }
+  update(dt) {
+    this.t += dt;
+    if (this.emerging > 0) {
+      const rise = 44 * dt;
+      this.y -= rise;
+      this.emerging -= rise;
+    }
+  }
+  draw(ctx) {
+    Sprites.drawBoomerangFlower(ctx, { x: this.x, y: this.y, w: this.w, h: this.h }, this.t);
+  }
+}
+
 export class Star extends Body {
   constructor(x, y) {
     super(x, y, 26, 26);
@@ -784,6 +875,125 @@ export class Fireball extends Body {
   }
   draw(ctx) {
     Sprites.drawFireball(ctx, { x: this.x, y: this.y, w: this.w, h: this.h }, this.t, this.type);
+  }
+}
+
+// --------------------------------------------------------------------------
+// Boomerang — flies out in a straight line, then curves back toward the thrower
+// (hitting enemies both ways). The owner can catch it to throw again sooner;
+// otherwise it expires once it has returned. Ignores walls/gravity.
+// --------------------------------------------------------------------------
+export class Boomerang extends Body {
+  constructor(x, y, dir, owner) {
+    super(x, y, 18, 18);
+    this.kind = "boomerang";
+    this.owner = owner;
+    this.dir = dir;
+    this.vx = BOOMERANG_SPEED * dir;
+    this.startX = x;
+    this.phase = "out"; // out | back
+    this.t = 0;
+    this.life = 3;
+  }
+  update(dt, world) {
+    this.t += dt;
+    this.life -= dt;
+    if (this.life <= 0) this.dead = true;
+    if (this.phase === "out") {
+      // Decelerate so it stalls after ~BOOMERANG_RANGE px, then flip to "back".
+      const decel = (BOOMERANG_SPEED * BOOMERANG_SPEED) / (2 * BOOMERANG_RANGE);
+      this.vx -= this.dir * decel * dt;
+      if (Math.sign(this.vx) !== this.dir) this.phase = "back";
+    } else {
+      // home back toward the owner
+      const target = this.owner && this.owner.alive ? this.owner.cx : this.startX;
+      const toward = Math.sign(target - this.cx) || -this.dir;
+      this.vx += toward * 1700 * dt;
+      this.vx = Math.max(-BOOMERANG_SPEED * 1.2, Math.min(BOOMERANG_SPEED * 1.2, this.vx));
+      if (this.owner && this.owner.alive && this.intersects(this.owner)) this.dead = true; // caught
+    }
+    this.x += this.vx * dt;
+    this.y += Math.sin(this.t * 10) * 24 * dt; // gentle wobble
+    if (this.x < -80 || this.x > world.pixelWidth + 80) this.dead = true;
+  }
+  draw(ctx) {
+    Sprites.drawBoomerang(ctx, { x: this.x, y: this.y, w: this.w, h: this.h }, this.t);
+  }
+}
+
+// --------------------------------------------------------------------------
+// Paratroopa — a winged Koopa that hops in place. Stomping it shears the wings
+// and drops a regular walking Koopa (classic SMB behaviour). Until then it can
+// also be flipped by fire/shell/star or frozen by ice.
+// --------------------------------------------------------------------------
+export class Paratroopa extends Body {
+  constructor(col, row) {
+    super(col * TILE + 4, row * TILE - 8, 26, 40);
+    this.kind = "paratroopa";
+    this.homeY = this.y;
+    this.vx = 0;
+    this.vy = -260;
+    this.walkTimer = 0;
+    this.walkFrame = 0;
+    this.facing = -1;
+    this.state = "walk"; // walk(=hopping) | frozen | flipped
+  }
+  flip(dir, game) {
+    this.state = "flipped";
+    this.vy = -320;
+    this.vx = 70 * dir;
+    game.audio.kick();
+  }
+  freeze(game) {
+    if (this.state === "flipped") return;
+    this.state = "frozen";
+    this.freezeTimer = FREEZE_TIME;
+    this.vx = 0;
+    game.audio.freeze();
+  }
+  // Convert into a grounded Koopa where it currently sits.
+  deWing() {
+    const koopa = new Koopa(0, 0);
+    koopa.x = this.x;
+    koopa.y = this.homeY + 8;
+    koopa.vx = -ENEMY_SPEED;
+    koopa.state = "walk";
+    this.dead = true;
+    return koopa;
+  }
+  update(dt, world) {
+    if (this.state === "frozen") {
+      this.freezeTimer -= dt;
+      this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt);
+      this.y += this.vy * dt;
+      collideY(this, world);
+      if (this.freezeTimer <= 0) this.state = "walk";
+      return;
+    }
+    if (this.state === "flipped") {
+      this.vy += GRAVITY * dt;
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+      if (this.y > world.pixelHeight + 100) this.dead = true;
+      return;
+    }
+    // Bounce in place around its home height.
+    this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt);
+    this.y += this.vy * dt;
+    if (this.y >= this.homeY) {
+      this.y = this.homeY;
+      this.vy = -260; // hop back up
+    }
+    this.walkTimer += dt;
+    if (this.walkTimer > 0.12) {
+      this.walkTimer = 0;
+      this.walkFrame ^= 1;
+    }
+  }
+  draw(ctx) {
+    const box = { x: this.x, y: this.y, w: this.w, h: this.h };
+    Sprites.drawParatroopa(ctx, box, { walkFrame: this.walkFrame, facing: this.facing });
+    if (this.state === "frozen") Sprites.drawFrozenOverlay(ctx, box);
   }
 }
 
@@ -870,6 +1080,7 @@ export class Bowser extends Body {
         ? ["hammers", "hammers", "charge", "slam"]
         : ["breathe", "spread", "slam", "charge"];
     if (this.phase >= 2) base.push("spread", "breathe", "charge");
+    if (this.phase >= 3) base.push("rain", "rain", "spread"); // final-phase fury
     return base[(Math.random() * base.length) | 0];
   }
   update(dt, world, player, game) {
@@ -977,6 +1188,11 @@ export class Bowser extends Body {
         break;
       case "hammers":
         game.bossHammers(this, player);
+        this.action = "walk";
+        this.moveTimer = this.cooldown;
+        break;
+      case "rain":
+        game.bossRain(this, player);
         this.action = "walk";
         this.moveTimer = this.cooldown;
         break;

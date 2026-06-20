@@ -6,7 +6,7 @@ persistent global leaderboard. **No game art, sprite sheets, or audio files** �
 every visual is drawn with canvas primitives and every sound is synthesized with
 the Web Audio API, so the whole thing is self-contained.
 
-![levels](https://img.shields.io/badge/levels-10%20%2B%203%20bosses-e52521) ![tests](https://img.shields.io/badge/tests-103%20passing-5fe06b)
+![levels](https://img.shields.io/badge/levels-13%20%2B%203%20bosses-e52521) ![tests](https://img.shields.io/badge/tests-126%20passing-5fe06b)
 
 ## Features
 
@@ -24,35 +24,42 @@ the Web Audio API, so the whole thing is self-contained.
   *jump buffering* for a forgiving, modern feel.
 - **Chinese UI** with a **level-select menu** (levels unlock as you clear them,
   saved in your browser).
-- **10 hand-designed levels** across day, dusk, night, **snow**, **cave** and
+- **13 hand-designed levels** across day, dusk, night, **snow**, **cave** and
   **castle** themes (with falling snow, glowing crystals and bubbling lava),
-  each ending in a flagpole + fireworks. Difficulty **ramps** from a gentle
-  World 1 to a punishing World 3 (more pits, Spinies and enemy gauntlets), yet
-  **every level is automatically verified completable** by a headless auto-pilot
-  in the tests, so no stage can ship un-runnable.
+  each ending in a flagpole + fireworks. Difficulty **ramps hard** from a gentle
+  World 1 to a punishing World 4 gauntlet (dense pits, Spinies, Paratroopas and
+  tighter timers), yet **every level is automatically verified completable** by a
+  headless auto-pilot in the tests, so no stage can ship un-runnable.
 - **Three detailed, multi-attack bosses** — a mid-game **Hammer King** (lobs
-  arcing hammers), a fast, single-phase **Shadow Bowser** fortress guardian, and
-  a final **two-phase Bowser** (6 HP × 2). Each telegraphs then picks from
+  arcing hammers), a fast single-phase **Shadow Bowser** fortress guardian, and
+  a climactic **three-phase Bowser** (5 HP × 3). Each telegraphs then picks from
   several moves: **fire stream**, **3-way spread**, **leaping ground slam** (with
-  shockwaves), and a **rushing charge** — and rages faster in phase 2. Beat them
-  with projectiles or the bridge **axe**; stomping fails.
-- **Clear item roles** (each shows a tooltip when picked up):
-  - 🍄 **Mushroom** — grow / take an extra hit (or stash a spare).
-  - 🌸 **Fire** — fireballs, your main **damage** vs. bosses.
-  - 🧊 **Ice** — iceballs **freeze** enemies into coin-dropping blocks, and
-    **stun the boss** to open a window — control, not damage.
+  shockwaves), a **rushing charge**, and — in the final phase — a **rain of
+  fireballs**. He rages faster each phase. Beat him with projectiles or the
+  bridge **axe**; stomping fails.
+- **Six power-up forms, each with a clear role** (a data-driven table drives
+  pickups + tooltips; grabbing a form you already have stashes a spare):
+  - 🍄 **Mushroom** — grow / take an extra hit.
+  - 🌸 **Fire** — bouncing fireballs, your main **damage** vs. bosses.
+  - 🧊 **Ice** — iceballs **freeze** enemies into coin-dropping blocks and
+    **stun the boss** — control, not damage.
+  - 🍃 **Super Leaf** *(new)* — the **raccoon tail**: hold jump while falling to
+    **glide**, and press the action button to **tail-spin** enemies away and
+    knock out bricks.
+  - 🪃 **Boomerang Flower** *(new)* — throw a **returning boomerang** that hits
+    enemies on the way out *and* back, and chips the boss — pierces, so one
+    throw can clear a row.
   - ⭐ **Star** — invincibility that blasts through (and damages bosses).
 - **Reserve item box** — every level starts with a spare 🍄 you can deploy any
-  time with `C`; spare power-ups you grab get stashed there too.
-- **Power-ups** — Super Mushroom (grow), **Fire Flower** (bouncing fireballs),
-  **Ice Flower** (iceballs that freeze enemies into shatterable blocks),
-  **Super Star** (rainbow invincibility), 1-Up Mushroom, and the reserve box.
+  time with `C`; spare power-ups (fire/ice/leaf/boomerang/mushroom) get stashed
+  there too.
 - **On-screen key feedback** — the control chips light up as you press, on top
   of forgiving coyote-time + jump-buffering input.
 - **Enemies** — Goombas, Koopa Troopas with full shell mechanics (stomp → kick
   → spinning shell combos), **Piranha Plants** that rise from pipes and duck
-  when you stand near, and spiked **Spinies** that **can't be stomped** — leap
-  them, or take them out with a fireball, an iceball, a kicked shell or a star.
+  when you stand near, spiked **Spinies** that **can't be stomped** (leap them or
+  use a fireball/iceball/shell/star), and **Paratroopas** *(new)* — winged
+  Koopas that hop in place and shed their wings into a ground Koopa when stomped.
 - **Interactive blocks** — `?` blocks (coins / mushroom→fire / ice / star /
   1-up), breakable bricks (when powered up) with flying debris, animated coins.
 - **Scoring** — stomps, shell kicks, projectile kills, coins, bricks,
@@ -99,9 +106,10 @@ Then open <http://localhost:3000>.
 npm test
 ```
 
-103 tests cover level integrity, collision/physics edge cases (gravity, walls,
-pits, growing/shrinking, enemy ledge-turning), power-ups (fire/ice/star/reserve),
-enemy behaviours (incl. the un-stompable **Spiny**), the boss fights (phases,
+126 tests cover level integrity, collision/physics edge cases (gravity, walls,
+pits, growing/shrinking, enemy ledge-turning), every power-up (fire/ice/leaf
+glide+spin/boomerang/star/reserve), enemy behaviours (incl. the un-stompable
+**Spiny** and the de-winging **Paratroopa**), the three-phase boss fight (phases,
 axe, fire-breath), a headless run of the full game loop — and, crucially, an
 **auto-pilot that proves every non-boss level is actually completable** (it runs
 and jumps through each level using the real physics; any level it can't clear
@@ -127,7 +135,7 @@ public/
     main.js               # boot: wires UI, overlays, HUD, leaderboard
     game.js               # Game: state machine, loop, camera, scoring
     world.js              # tile grid, solidity, block bumps
-    entities.js           # Player, Goomba, Koopa, Mushroom, particles + physics
+    entities.js           # Player, enemies, items, boomerang, particles + physics
     render.js             # backgrounds + tile/scenery rendering
     sprites.js            # procedural sprite drawing (no image assets)
     levels.js             # programmatic level builder + 3 levels
