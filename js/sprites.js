@@ -177,6 +177,46 @@ export function drawGoomba(ctx, box, opts = {}) {
 }
 
 // --------------------------------------------------------------------------
+// Spiny — a spiked red enemy you can't stomp.
+// --------------------------------------------------------------------------
+export function drawSpiny(ctx, box, opts = {}) {
+  const { walkFrame = 0, facing = 1 } = opts;
+  const flip = facing < 0;
+  // Spiky orange shell with darker rim.
+  fr(ctx, box, 0.12, 0.34, 0.76, 0.44, "#d9531e", flip);
+  fr(ctx, box, 0.18, 0.4, 0.64, 0.3, "#f07a2e", flip); // shell highlight
+  fr(ctx, box, 0.12, 0.68, 0.76, 0.1, "#a83a12", flip); // bottom shade
+  // White spikes ringing the shell.
+  const spike = (fx, fy, fw, fh) => {
+    ctx.fillStyle = "#fff3e0";
+    ctx.beginPath();
+    const { x, y, w, h } = box;
+    const rx = flip ? 1 - fx - fw : fx;
+    ctx.moveTo(x + rx * w, y + (fy + fh) * h);
+    ctx.lineTo(x + (rx + fw / 2) * w, y + fy * h);
+    ctx.lineTo(x + (rx + fw) * w, y + (fy + fh) * h);
+    ctx.closePath();
+    ctx.fill();
+  };
+  for (const fx of [0.1, 0.32, 0.54, 0.76]) spike(fx, 0.12, 0.16, 0.22);
+  spike(0.02, 0.42, 0.14, 0.2);
+  spike(0.84, 0.42, 0.14, 0.2);
+  // Face peeking out the front.
+  fr(ctx, box, 0.52, 0.48, 0.3, 0.22, "#ffd9a0", flip);
+  fr(ctx, box, 0.62, 0.52, 0.08, 0.09, PAL.white, flip);
+  fr(ctx, box, 0.64, 0.54, 0.05, 0.06, PAL.black, flip);
+  fr(ctx, box, 0.56, 0.5, 0.12, 0.03, PAL.black, flip); // angry brow
+  // Feet
+  if (walkFrame) {
+    fr(ctx, box, 0.18, 0.86, 0.24, 0.14, "#a83a12", flip);
+    fr(ctx, box, 0.56, 0.86, 0.24, 0.14, "#a83a12", flip);
+  } else {
+    fr(ctx, box, 0.24, 0.86, 0.24, 0.14, "#a83a12", flip);
+    fr(ctx, box, 0.5, 0.86, 0.24, 0.14, "#a83a12", flip);
+  }
+}
+
+// --------------------------------------------------------------------------
 // Koopa Troopa (+ shell mode)
 // --------------------------------------------------------------------------
 export function drawKoopa(ctx, box, opts = {}) {

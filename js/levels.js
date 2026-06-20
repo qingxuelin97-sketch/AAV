@@ -50,6 +50,15 @@ class LevelBuilder {
   coins(row, from, to, step = 1) {
     for (let c = from; c <= to; c += step) this.set(c, row, T.COIN);
   }
+  // A short floating platform (bonus route / aerial challenge), never the only
+  // way forward — the flat ground always runs underneath it.
+  platform(row, from, to, ch = T.HARD) {
+    this.hline(row, from, to, ch);
+  }
+  // A spiked enemy spawn (can't be stomped). Placed on flat ground.
+  spiny(col, row = this.height - 3) {
+    this.set(col, row, T.SPINY);
+  }
   flag(col) {
     for (let r = 3; r <= this.height - 3; r++) this.set(col, r, T.FLAGPOLE);
     this.set(col, this.height - 2, T.FLAGBASE);
@@ -188,19 +197,24 @@ function world4() {
   b.set(52, 9, T.QBLOCK_ICE);
   b.set(54, 9, T.QBLOCK_COIN);
   b.coins(9, 58, 62);
-
   b.pipe(74, 3, true);
   b.set(82, 12, T.GOOMBA);
   b.set(84, 12, T.GOOMBA);
+  // Bonus brick platform with a coin run over the mid-section.
+  b.platform(7, 96, 100, T.BRICK);
+  b.coins(6, 96, 100);
   b.set(100, 9, T.QBLOCK_STAR);
   b.set(102, 9, T.QBLOCK_1UP);
   b.set(110, 12, T.KOOPA);
 
-  b.set(134, 12, T.GOOMBA);
+  b.set(126, 12, T.GOOMBA);
   b.pipe(150, 2, true);
   b.set(158, 12, T.GOOMBA);
   b.coins(9, 168, 174);
 
+  // Spiked Spinies — can't be stomped; use fire/ice/star/shell.
+  b.spiny(106);
+  b.spiny(126);
   return { name: "1-4", time: 400, bg: "day", flagCol: b.flag(182), tiles: b.toRows(), width: w };
 }
 
@@ -307,6 +321,11 @@ function snow2() {
   b.set(160, 12, T.GOOMBA);
   b.coins(9, 172, 178);
 
+  // Spiked Spinies — can't be stomped; use fire/ice/star/shell.
+  b.spiny(54);
+  b.spiny(77);
+  b.spiny(127);
+  b.spiny(173);
   return { name: "2-3", time: 400, bg: "snow", flagCol: b.flag(180), tiles: b.toRows(), width: w };
 }
 
@@ -328,7 +347,6 @@ function night2() {
   b.set(30, 9, T.QBLOCK_ICE);
   b.set(46, 12, T.GOOMBA);
   b.set(58, 9, T.QBLOCK_COIN);
-
   b.set(64, 12, T.KOOPA);
   b.set(70, 9, T.QBLOCK_STAR);
   b.pipe(92, 2, true);
@@ -345,7 +363,164 @@ function night2() {
   b.set(180, 9, T.QBLOCK_ICE);
   b.coins(9, 182, 186);
 
+  // Spiked Spinies — can't be stomped; use fire/ice/star/shell.
+  b.spiny(64);
+  b.spiny(98);
+  b.spiny(126);
+  b.spiny(174);
   return { name: "2-4", time: 400, bg: "night", flagCol: b.flag(194), tiles: b.toRows(), width: w };
+}
+
+// ---------------------------------------------------------------------------
+// World 3-1 — underground caverns (new cave theme, Spinies appear).
+// ---------------------------------------------------------------------------
+function cave1() {
+  const w = 190;
+  const b = new LevelBuilder(w);
+  b.ground(0, w - 1);
+  [26, 48, 72, 96, 122, 148, 170].forEach((c, i) => b.pit(c, i % 2 ? 3 : 2));
+
+  b.set(8, 9, T.QBLOCK_MUSH);
+  b.set(10, 9, T.QBLOCK_ICE);
+  b.coins(9, 14, 20);
+
+  b.pipe(34, 2, true);
+  b.set(40, 12, T.GOOMBA);
+  // Aerial coin run on a stone ledge.
+  b.platform(7, 56, 60, T.HARD);
+  b.coins(6, 56, 60);
+  b.set(58, 9, T.QBLOCK_STAR);
+  b.set(64, 12, T.KOOPA);
+  b.pipe(104, 3, true);
+  b.set(112, 12, T.GOOMBA);
+  b.set(114, 12, T.GOOMBA);
+  b.set(134, 9, T.QBLOCK_1UP);
+  b.coins(9, 136, 140);
+  b.set(160, 12, T.KOOPA);
+  b.coins(9, 176, 182);
+
+  // Spiked Spinies — can't be stomped; use fire/ice/star/shell.
+  b.spiny(56);
+  b.spiny(79);
+  b.spiny(129);
+  b.spiny(156);
+  return { name: "3-1", time: 400, bg: "cave", flagCol: b.flag(184), tiles: b.toRows(), width: w };
+}
+
+// ---------------------------------------------------------------------------
+// World 3-2 — deep caverns, the toughest gauntlet of pits and Spinies.
+// ---------------------------------------------------------------------------
+function cave2() {
+  const w = 196;
+  const b = new LevelBuilder(w);
+  b.ground(0, w - 1);
+  [22, 40, 60, 82, 104, 126, 150, 174].forEach((c, i) => b.pit(c, i % 2 ? 3 : 2));
+
+  b.set(8, 9, T.QBLOCK_MUSH);
+  b.set(10, 9, T.QBLOCK_ICE);
+  b.set(12, 9, T.QBLOCK_MUSH);
+  b.pipe(30, 3, true);
+  b.set(52, 12, T.KOOPA);
+  // Stepping-stone stone blocks above a wide gap (bonus high road).
+  b.platform(8, 70, 72, T.HARD);
+  b.coins(7, 70, 72);
+  b.set(74, 9, T.QBLOCK_STAR);
+
+  b.set(92, 12, T.GOOMBA);
+  b.set(94, 12, T.GOOMBA);
+  b.pipe(112, 2, true);
+  b.set(134, 9, T.QBLOCK_ICE);
+  b.set(136, 9, T.QBLOCK_1UP);
+  b.set(140, 12, T.KOOPA);
+  b.set(164, 12, T.GOOMBA);
+  b.coins(9, 184, 188);
+
+  // Spiked Spinies — can't be stomped; use fire/ice/star/shell.
+  b.spiny(48);
+  b.spiny(67);
+  b.spiny(157);
+  b.spiny(182);
+  return { name: "3-2", time: 400, bg: "cave", flagCol: b.flag(190), tiles: b.toRows(), width: w };
+}
+
+// ---------------------------------------------------------------------------
+// World 3-3 — fortress mid-boss: a tougher, faster Shadow Bowser.
+// ---------------------------------------------------------------------------
+function fortressBoss() {
+  const w = 74;
+  const b = new LevelBuilder(w);
+  b.ground(0, w - 1);
+  b.pit(12, 2);
+  b.pit(22, 2);
+  b.pit(34, 3);
+
+  // Stock up on firepower before the gate.
+  b.set(5, 9, T.QBLOCK_MUSH);
+  b.set(8, 9, T.QBLOCK_MUSH);
+  b.set(18, 9, T.QBLOCK_MUSH);
+  b.set(28, 9, T.QBLOCK_ICE);
+  b.set(30, 9, T.QBLOCK_1UP);
+  b.coins(9, 42, 46);
+  b.pipe(40, 2, true);
+
+  // Arena.
+  b.set(52, b.height - 3, T.BOSS);
+  b.set(64, b.height - 3, T.HARD);
+  b.set(64, b.height - 4, T.AXE);
+  for (let r = b.height - 6; r < b.height - 1; r++) b.set(68, r, T.HARD);
+
+  // Spiked Spinies — can't be stomped; use fire/ice/star/shell.
+  b.spiny(26);
+  return {
+    name: "3-3",
+    time: 300,
+    bg: "castle",
+    flagCol: w + 5,
+    boss: true,
+    bossType: "fortress",
+    tiles: b.toRows(),
+    width: w,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// World 3-4 — the sky run: the hardest platforming stage before the castle.
+// ---------------------------------------------------------------------------
+function sky3() {
+  const w = 204;
+  const b = new LevelBuilder(w);
+  b.ground(0, w - 1);
+  [24, 44, 66, 88, 110, 134, 158, 182].forEach((c, i) => b.pit(c, i % 2 ? 3 : 2));
+
+  b.set(8, 9, T.QBLOCK_MUSH);
+  b.set(10, 9, T.QBLOCK_ICE);
+  b.coins(9, 14, 18);
+
+  b.pipe(32, 3, true);
+  b.set(38, 12, T.KOOPA);
+  // High brick road with a star reward.
+  b.platform(7, 54, 60, T.BRICK);
+  b.coins(6, 54, 60);
+  b.set(57, 7, T.QBLOCK_STAR);
+
+  b.set(78, 12, T.GOOMBA);
+  b.set(80, 12, T.GOOMBA);
+  b.pipe(96, 2, true);
+  b.set(120, 9, T.QBLOCK_1UP);
+  b.coins(9, 122, 126);
+  b.set(146, 12, T.KOOPA);
+  b.set(150, 12, T.KOOPA);
+  b.set(172, 12, T.GOOMBA);
+  b.coins(9, 192, 196);
+
+  // Spiked Spinies — can't be stomped; use fire/ice/star/shell.
+  b.spiny(52);
+  b.spiny(73);
+  b.spiny(117);
+  b.spiny(125);
+  b.spiny(142);
+  b.spiny(165);
+  return { name: "3-4", time: 400, bg: "dusk", flagCol: b.flag(198), tiles: b.toRows(), width: w };
 }
 
 // ---------------------------------------------------------------------------
@@ -376,7 +551,7 @@ function finalBoss() {
   for (let r = b.height - 7; r < b.height - 1; r++) b.set(70, r, T.HARD);
 
   return {
-    name: "2-castle",
+    name: "终城堡",
     time: 400,
     bg: "castle",
     flagCol: w + 5,
@@ -396,5 +571,9 @@ export const LEVELS = [
   miniBoss(),
   snow2(),
   night2(),
+  cave1(),
+  cave2(),
+  fortressBoss(),
+  sky3(),
   finalBoss(),
 ];

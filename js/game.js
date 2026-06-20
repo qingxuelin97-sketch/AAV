@@ -8,6 +8,7 @@ import {
   Player,
   Goomba,
   Koopa,
+  Spiny,
   PiranhaPlant,
   Mushroom,
   FireFlower,
@@ -48,14 +49,15 @@ class CoinPop {
 }
 
 // Which looping theme suits each background.
-const MUSIC_FOR_BG = { day: "overworld", dusk: "overworld", night: "night", snow: "snow", castle: "boss" };
+const MUSIC_FOR_BG = { day: "overworld", dusk: "overworld", night: "night", snow: "snow", cave: "night", castle: "boss" };
 
 const BOSS_PRESETS = {
   mini: { variant: "mini", name: "锤子龟王", tint: "#4aa3ff", hp: 4, phases: 1, speed: 95 },
-  bowser: { variant: "bowser", name: "库巴", hp: 6, phases: 2, speed: 80 },
+  fortress: { variant: "bowser", name: "暗影库巴", tint: "#8a3fd0", hp: 6, phases: 1, speed: 110 },
+  bowser: { variant: "bowser", name: "库巴", hp: 6, phases: 2, speed: 90 },
 };
 
-const ENEMY = (e) => e instanceof Goomba || e instanceof Koopa;
+const ENEMY = (e) => e instanceof Goomba || e instanceof Koopa || e instanceof Spiny;
 const ITEM = (e) =>
   e instanceof Mushroom || e instanceof FireFlower || e instanceof IceFlower || e instanceof Star;
 
@@ -146,6 +148,9 @@ export class Game {
           this.world.setTile(col, row, T.EMPTY);
         } else if (ch === T.KOOPA) {
           this.entities.push(new Koopa(col, row));
+          this.world.setTile(col, row, T.EMPTY);
+        } else if (ch === T.SPINY) {
+          this.entities.push(new Spiny(col, row));
           this.world.setTile(col, row, T.EMPTY);
         } else if (ch === T.PIRANHA) {
           this.entities.push(new PiranhaPlant(col, row + 1));
@@ -486,7 +491,12 @@ export class Game {
       const pBottom = p.y + p.h;
       const stomp = p.vy > 0 && pBottom - e.y < e.h * 0.7;
 
-      if (e instanceof Goomba) {
+      if (e instanceof Spiny) {
+        // Spiked back: jumping on it hurts. Bounce off a little if stomped so
+        // you aren't glued to the spikes, then take the hit.
+        if (stomp) p.vy = STOMP_BOUNCE * 0.5;
+        p.damage(this);
+      } else if (e instanceof Goomba) {
         if (stomp) {
           e.squash(this);
           p.vy = STOMP_BOUNCE;

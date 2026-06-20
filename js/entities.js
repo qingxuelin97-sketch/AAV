@@ -411,6 +411,69 @@ export class Goomba extends Body {
 }
 
 // --------------------------------------------------------------------------
+// Spiny — a spiked enemy. Walks and turns at ledges like a Goomba, but its
+// back is covered in spikes, so stomping it hurts you. Defeat it with a
+// fireball, a star, a kicked shell, or freeze it with an iceball.
+// --------------------------------------------------------------------------
+export class Spiny extends Body {
+  constructor(col, row) {
+    super(col * TILE + 4, row * TILE + 6, 26, 26);
+    this.kind = "spiny";
+    this.vx = 0; // holds its ground: a planted spiked hazard you must leap
+    this.walkTimer = 0;
+    this.walkFrame = 0;
+    this.facing = -1;
+    this.state = "walk";
+  }
+  flip(dir, game) {
+    this.state = "flipped";
+    this.vy = -320;
+    this.vx = 70 * dir;
+    game.audio.kick();
+  }
+  freeze(game) {
+    if (this.state === "flipped") return;
+    this.state = "frozen";
+    this.freezeTimer = FREEZE_TIME;
+    this.vx = 0;
+    game.audio.freeze();
+  }
+  update(dt, world) {
+    if (this.state === "frozen") {
+      this.freezeTimer -= dt;
+      this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt);
+      this.y += this.vy * dt;
+      collideY(this, world);
+      if (this.freezeTimer <= 0) this.state = "walk";
+      return;
+    }
+    if (this.state === "flipped") {
+      this.vy += GRAVITY * dt;
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+      if (this.y > world.pixelHeight + 100) this.dead = true;
+      return;
+    }
+    // Planted in place: only gravity keeps it seated. It never wanders into
+    // pits or under blocks, so it stays a fair, leap-able hazard.
+    this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt);
+    this.y += this.vy * dt;
+    collideY(this, world);
+    if (this.y > world.pixelHeight + 100) this.dead = true;
+    this.walkTimer += dt;
+    if (this.walkTimer > 0.22) {
+      this.walkTimer = 0;
+      this.walkFrame ^= 1;
+    }
+  }
+  draw(ctx) {
+    const box = { x: this.x, y: this.y, w: this.w, h: this.h };
+    Sprites.drawSpiny(ctx, box, { walkFrame: this.walkFrame, facing: this.facing });
+    if (this.state === "frozen") Sprites.drawFrozenOverlay(ctx, box);
+  }
+}
+
+// --------------------------------------------------------------------------
 // Koopa Troopa
 // --------------------------------------------------------------------------
 export class Koopa extends Body {

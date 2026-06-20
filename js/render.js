@@ -8,6 +8,7 @@ const SKY = {
   dusk: ["#3a2a6b", "#ff8a5c"],
   night: ["#0a0a2a", "#1a1a4a"],
   snow: ["#8fb8e8", "#dceaf7"],
+  cave: ["#0c1418", "#142730"],
   castle: ["#1a0d12", "#3a1416"],
 };
 
@@ -37,6 +38,11 @@ export function drawBackground(ctx, cam, def, time = 0) {
     drawHills(ctx, cam, def);
     drawScenery(ctx, cam, def);
     drawSnow(ctx, time);
+    return;
+  }
+
+  if (def.bg === "cave") {
+    drawCaveBg(ctx, cam, def, time);
     return;
   }
 
@@ -144,6 +150,46 @@ function drawSnow(ctx, time) {
     const s = r() > 0.8 ? 3 : 2;
     ctx.fillRect(x, y, s, s);
   }
+}
+
+// Underground cavern: dripping stalactites/stalagmites and faint glow-crystals.
+function drawCaveBg(ctx, cam, def, time) {
+  const offset = cam.x * 0.45;
+  const baseY = VIEW_H - TILE * 2;
+  // Hanging stalactites from the ceiling.
+  ctx.fillStyle = "#1b2a33";
+  const spacing = 3 * TILE;
+  for (let i = -1; i < def.width / 3 + 1; i++) {
+    const x = i * spacing - (offset % (spacing * 4));
+    const h = 26 + ((i * 53) % 40);
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x + TILE * 0.7, 0);
+    ctx.lineTo(x + TILE * 0.35, h);
+    ctx.closePath();
+    ctx.fill();
+    // matching stalagmite rising from the floor
+    const gh = 18 + ((i * 31) % 34);
+    ctx.beginPath();
+    ctx.moveTo(x + TILE, baseY);
+    ctx.lineTo(x + TILE + TILE * 0.7, baseY);
+    ctx.lineTo(x + TILE + TILE * 0.35, baseY - gh);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Glowing crystals, twinkling with time.
+  const r = rng(def.width * 17 + 3);
+  for (let i = 0; i < 40; i++) {
+    const x = (r() * def.width * TILE - offset);
+    const sx = ((x % (def.width * TILE)) + def.width * TILE) % (def.width * TILE);
+    if (sx < -20 || sx > VIEW_W + 20) continue;
+    const y = 40 + r() * (VIEW_H - 160);
+    const tw = 0.4 + 0.6 * ((Math.sin(time * 2 + i) + 1) / 2);
+    ctx.globalAlpha = tw;
+    ctx.fillStyle = i % 3 === 0 ? "#6fe0ff" : "#7affc0";
+    ctx.fillRect(sx, y, 3, 5);
+  }
+  ctx.globalAlpha = 1;
 }
 
 // Castle interior: dark pillars and a glowing, bubbling lava strip.
@@ -298,6 +344,7 @@ const GROUND_THEME = {
   dusk: { fill: "#9a4a6a", stud: "#7a3550", lt: "#b86a86", dk: "#5c2640", top: "#7a4a8a", top2: "#5c3568" },
   night: { fill: "#3a3550", stud: "#2a2640", lt: "#5a5170", dk: "#1f1c30", top: "#2f5a3a", top2: "#214a2c" },
   snow: { fill: "#a8c4dc", stud: "#8aa8c4", lt: "#d0e4f2", dk: "#6a8aa6", top: "#ffffff", top2: "#d8ebf7" },
+  cave: { fill: "#3a4a52", stud: "#2a363c", lt: "#52656e", dk: "#1c262b", top: "#2f6a5a", top2: "#214a3e" },
   castle: { fill: "#4a4458", stud: "#332f42", lt: "#665f78", dk: "#221f2e", top: null, top2: null },
 };
 
@@ -391,19 +438,14 @@ function hardBlock(ctx, x, y) {
 }
 
 function pipeTop(ctx, x, y, left) {
+  // The pipe lip: a green cap with a bright highlight on the left tile.
   ctx.fillStyle = "#2e9c2e";
   ctx.fillRect(x, y, TILE, TILE);
-  // rim overhang
-  ctx.fillStyle = "#2e9c2e";
-  ctx.fillRect(x - (left ? 0 : 0), y, TILE, 10);
   ctx.fillStyle = "#6fe06f";
-  ctx.fillRect(x, y, left ? 4 : TILE - 4 < 0 ? 0 : 4, TILE);
-  if (left) {
-    ctx.fillStyle = "#6fe06f";
-    ctx.fillRect(x, y, 4, 10);
-  }
+  if (left) ctx.fillRect(x, y, 4, TILE); // vertical highlight on the left edge
+  ctx.fillRect(x, y, TILE, 4); // top-lip highlight
   ctx.fillStyle = "#1c6e1c";
-  ctx.fillRect(x, y + 8, TILE, 2);
+  ctx.fillRect(x, y + 8, TILE, 2); // groove under the lip
   if (left) ctx.fillRect(x, y, 2, TILE);
   else ctx.fillRect(x + TILE - 2, y, 2, TILE);
   ctx.strokeStyle = "#0e4a0e";
