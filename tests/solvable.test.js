@@ -78,19 +78,36 @@ function runLevel(index) {
   game.startAt(index);
 
   let jumpHold = 0;
+  let strokeCd = 0;
   let maxX = 0;
   for (let frame = 0; frame < 5000; frame++) {
     const p = game.player;
     const world = game.world;
+    const water = !!(world && world.def && world.def.water);
 
-    if (game.state === STATE.PLAYING && p.onGround && jumpHold === 0 && needJump(p, world, game)) {
-      input.press("jump");
-      input.state.jump = true;
-      jumpHold = 11;
-    }
-    if (jumpHold > 0) {
-      jumpHold -= 1;
-      if (jumpHold === 0) input.state.jump = false;
+    if (water) {
+      // Swimming: stroke repeatedly to climb over coral, and keep off the floor
+      // enough to keep moving. Strokes work mid-water (no ground needed).
+      const obstacle = needJump(p, world, game);
+      const sinking = p.vy > 30;
+      if (game.state === STATE.PLAYING && strokeCd <= 0 && (obstacle || sinking)) {
+        input.press("jump");
+        input.state.jump = true;
+        strokeCd = obstacle ? 7 : 16;
+      } else {
+        input.state.jump = false;
+      }
+      if (strokeCd > 0) strokeCd -= 1;
+    } else {
+      if (game.state === STATE.PLAYING && p.onGround && jumpHold === 0 && needJump(p, world, game)) {
+        input.press("jump");
+        input.state.jump = true;
+        jumpHold = 11;
+      }
+      if (jumpHold > 0) {
+        jumpHold -= 1;
+        if (jumpHold === 0) input.state.jump = false;
+      }
     }
 
     game.update(1 / 60);

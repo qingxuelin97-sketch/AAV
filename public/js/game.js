@@ -10,6 +10,7 @@ import {
   Koopa,
   Spiny,
   Paratroopa,
+  CheepCheep,
   PiranhaPlant,
   Mushroom,
   FireFlower,
@@ -53,12 +54,12 @@ class CoinPop {
 }
 
 // Which looping theme suits each background.
-const MUSIC_FOR_BG = { day: "overworld", dusk: "overworld", night: "night", snow: "snow", cave: "night", castle: "boss" };
+const MUSIC_FOR_BG = { day: "overworld", dusk: "overworld", night: "night", snow: "snow", cave: "night", water: "snow", castle: "boss" };
 
 const BOSS_PRESETS = {
-  mini: { variant: "mini", name: "锤子龟王", tint: "#4aa3ff", hp: 4, phases: 1, speed: 95 },
-  fortress: { variant: "bowser", name: "暗影库巴", tint: "#8a3fd0", hp: 6, phases: 1, speed: 110 },
-  bowser: { variant: "bowser", name: "库巴", hp: 5, phases: 3, speed: 95 },
+  mini: { variant: "mini", name: "锤子龟王", tint: "#4aa3ff", hp: 5, phases: 1, speed: 95 },
+  fortress: { variant: "bowser", name: "暗影库巴", tint: "#8a3fd0", hp: 7, phases: 1, speed: 110 },
+  bowser: { variant: "bowser", name: "库巴", hp: 6, phases: 3, speed: 95 },
 };
 
 const ENEMY = (e) =>
@@ -166,6 +167,9 @@ export class Game {
           this.world.setTile(col, row, T.EMPTY);
         } else if (ch === T.PARATROOPA) {
           this.entities.push(new Paratroopa(col, row));
+          this.world.setTile(col, row, T.EMPTY);
+        } else if (ch === T.CHEEP) {
+          this.entities.push(new CheepCheep(col, row));
           this.world.setTile(col, row, T.EMPTY);
         } else if (ch === T.PIRANHA) {
           this.entities.push(new PiranhaPlant(col, row + 1));
@@ -502,8 +506,18 @@ export class Game {
     this.handleFireballCollisions();
     this.handleBoomerangCollisions();
     this.handlePiranhaCollisions();
+    this.handleCheepCollisions();
     this.handleItemCollisions();
     this.handleBossCollisions();
+
+    // Ambient rising bubbles in underwater levels.
+    if (world.def.water) {
+      this._bubbleT = (this._bubbleT || 0) - dt;
+      if (this._bubbleT <= 0) {
+        this._bubbleT = 0.25;
+        this.spawnBubble(this.cam.x + Math.random() * VIEW_W, VIEW_H - 10, 1);
+      }
+    }
 
     for (const p of this.particles) p.update(dt);
     for (const f of this.floatingTexts) f.update(dt);
@@ -684,6 +698,14 @@ export class Game {
           this.spawnBurst(fb.cx, fb.cy, burst);
           break;
         }
+        if (e.kind === "cheep" && fb.intersects(e)) {
+          e.dead = true;
+          fb.dead = true;
+          this.addScore(200);
+          this.popText(e.cx, e.y, "200", "#ffd23f");
+          this.spawnBurst(fb.cx, fb.cy, burst);
+          break;
+        }
       }
     }
   }
@@ -713,6 +735,10 @@ export class Game {
           this.addScore(100);
           this.popText(e.cx, e.y, "100");
         } else if (e.kind === "piranha" && e.active && bm.intersects(e)) {
+          e.dead = true;
+          this.addScore(200);
+          this.popText(e.cx, e.y, "200", "#ffd23f");
+        } else if (e.kind === "cheep" && bm.intersects(e)) {
           e.dead = true;
           this.addScore(200);
           this.popText(e.cx, e.y, "200", "#ffd23f");
@@ -775,6 +801,24 @@ export class Game {
     this.fireworks = [];
   }
 
+  // Cheep Cheeps hurt on contact underwater (star pops them).
+  handleCheepCollisions() {
+    const p = this.player;
+    if (!p.alive) return;
+    for (const e of this.entities) {
+      if (e.dead || e.kind !== "cheep") continue;
+      if (!p.intersects(e)) continue;
+      if (p.starTime > 0) {
+        e.dead = true;
+        this.addScore(200);
+        this.popText(e.cx, e.y, "200", "#ffd23f");
+        this.spawnBurst(e.cx, e.cy, "#ff9aa0");
+      } else {
+        p.damage(this);
+      }
+    }
+  }
+
   handlePiranhaCollisions() {
     const p = this.player;
     if (!p.alive) return;
@@ -809,6 +853,7 @@ export class Game {
     this.audio.powerup();
     this.addScore(1000);
     this.popText(e.cx, e.y, "1000", cfg.color);
+    this.spawnSparkle(e.cx, e.cy, cfg.color);
     this.showToast(cfg.toast);
   }
 
@@ -877,6 +922,34 @@ export class Game {
           0.4,
           0.12
         )
+      );
+    }
+  }
+
+  // A rising air bubble (swim strokes + ambient underwater motes).
+  spawnBubble(x, y, n = 1) {
+    for (let i = 0; i < n; i++) {
+      const p = new Particle(
+        x + (Math.random() * 12 - 6),
+        y,
+        Math.random() * 30 - 15,
+        -30 - Math.random() * 40,
+        "rgba(210,236,255,0.7)",
+        2 + Math.random() * 3,
+        0.9 + Math.random() * 0.5,
+        -0.06 // negative gravity → floats upward
+      );
+      this.particles.push(p);
+    }
+  }
+
+  // A bright collect sparkle when grabbing a power-up.
+  spawnSparkle(x, y, color = "#fff") {
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      const sp = 60 + Math.random() * 80;
+      this.particles.push(
+        new Particle(x, y, Math.cos(a) * sp, Math.sin(a) * sp - 30, color, 3, 0.5, 0.1)
       );
     }
   }
@@ -1026,7 +1099,10 @@ export class Game {
     if (this.player && this.player.onGround && this.player.alive) {
       drawShadow(ctx, this.player.cx, this.player.y + this.player.h, this.player.w);
     }
-    for (const e of this.entities) e.draw(ctx);
+    for (const e of this.entities) {
+      if (ITEM(e) && !(e instanceof Mushroom)) this.drawItemGlow(ctx, e);
+      e.draw(ctx);
+    }
     for (const fb of this.fireballs) fb.draw(ctx);
     for (const bm of this.boomerangs) bm.draw(ctx);
     for (const bf of this.bossFireballs) bf.draw(ctx);
@@ -1072,25 +1148,94 @@ export class Game {
     ctx.restore();
   }
 
+  // A soft pulsing halo behind a power-up so it reads as collectible/special.
+  // Uses layered translucent circles (no gradients) so it stays cheap + simple.
+  drawItemGlow(ctx, e) {
+    const colors = {
+      fire: "#ff8a3a",
+      iceflower: "#7ec8ff",
+      leaf: "#e0b070",
+      boomerangflower: "#9fb6ff",
+      star: "#ffe06a",
+    };
+    const color = colors[e.kind] || "#ffffff";
+    const pulse = 0.5 + 0.5 * Math.sin((this.time || 0) * 6 + e.x * 0.05);
+    const cx = e.x + e.w / 2;
+    const cy = e.y + e.h / 2;
+    ctx.save();
+    ctx.fillStyle = color;
+    for (let i = 3; i >= 1; i--) {
+      ctx.globalAlpha = 0.06 * pulse * i;
+      ctx.beginPath();
+      ctx.arc(cx, cy, e.w * (0.5 + i * 0.22), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  // A chunky, glossy, segmented boss health bar with a name plate and a row of
+  // phase pips (one filled per phase survived).
   drawBossBar(ctx) {
     const boss = this.boss;
-    const w = 300;
+    const w = 360;
     const x = (VIEW_W - w) / 2;
-    const y = 16;
+    const y = 14;
+    const barH = 22; // thick bar
     ctx.save();
-    ctx.fillStyle = "rgba(0,0,0,0.6)";
-    ctx.fillRect(x - 10, y - 6, w + 20, 38);
-    ctx.fillStyle = boss.enraged ? "#ff6a6a" : "#fff";
-    ctx.font = "10px 'Press Start 2P', monospace";
+
+    // Backing panel with border.
+    ctx.fillStyle = "rgba(8,4,18,0.78)";
+    ctx.fillRect(x - 14, y - 8, w + 28, barH + 44);
+    ctx.strokeStyle = boss.enraged ? "#ff7a4a" : "#caa6ff";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x - 14, y - 8, w + 28, barH + 44);
+
+    // Name + phase tag.
+    ctx.fillStyle = boss.enraged ? "#ff8a6a" : "#fff";
+    ctx.font = "11px 'Press Start 2P', monospace";
     ctx.textAlign = "center";
-    const phaseTag = boss.maxPhase > 1 ? `  [${boss.phase}/${boss.maxPhase}]` : "";
-    ctx.fillText(boss.name + phaseTag, VIEW_W / 2, y + 6);
+    ctx.fillText(boss.name, VIEW_W / 2, y + 6);
+
+    // Phase pips (top-right of the plate).
+    if (boss.maxPhase > 1) {
+      for (let i = 0; i < boss.maxPhase; i++) {
+        const px = x + w - 10 - i * 16;
+        ctx.fillStyle = i < boss.phase ? (boss.enraged ? "#ff7a2a" : "#ffd23f") : "#4a3a52";
+        ctx.beginPath();
+        ctx.arc(px, y - 1, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(0,0,0,0.5)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    }
+
+    // The thick segmented HP bar.
+    const by = y + 16;
     const hpMax = boss.hpPerPhase;
     const pw = w / hpMax;
+    // trough
+    ctx.fillStyle = "#2a1828";
+    ctx.fillRect(x, by, w, barH);
     for (let i = 0; i < hpMax; i++) {
-      ctx.fillStyle = i < boss.hp ? (boss.enraged ? "#ff7a2a" : "#ff3b3b") : "#3a2030";
-      ctx.fillRect(x + i * pw + 2, y + 14, pw - 4, 10);
+      const filled = i < boss.hp;
+      const cx0 = x + i * pw + 2;
+      const segW = pw - 4;
+      ctx.fillStyle = filled ? (boss.enraged ? "#ff5a1e" : "#ff2e3e") : "#3a2030";
+      ctx.fillRect(cx0, by + 2, segW, barH - 4);
+      if (filled) {
+        // glossy top highlight + darker base for a tube look
+        ctx.fillStyle = boss.enraged ? "#ffc08a" : "#ff9aa6";
+        ctx.fillRect(cx0, by + 3, segW, 4);
+        ctx.fillStyle = "rgba(0,0,0,0.25)";
+        ctx.fillRect(cx0, by + barH - 6, segW, 3);
+      }
     }
+    // bar outline
+    ctx.strokeStyle = "rgba(255,255,255,0.5)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, by, w, barH);
     ctx.restore();
   }
 

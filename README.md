@@ -6,7 +6,7 @@ persistent global leaderboard. **No game art, sprite sheets, or audio files** �
 every visual is drawn with canvas primitives and every sound is synthesized with
 the Web Audio API, so the whole thing is self-contained.
 
-![levels](https://img.shields.io/badge/levels-13%20%2B%203%20bosses-e52521) ![tests](https://img.shields.io/badge/tests-126%20passing-5fe06b)
+![levels](https://img.shields.io/badge/levels-15%20%2B%203%20bosses-e52521) ![tests](https://img.shields.io/badge/tests-141%20passing-5fe06b)
 
 ## Features
 
@@ -24,19 +24,25 @@ the Web Audio API, so the whole thing is self-contained.
   *jump buffering* for a forgiving, modern feel.
 - **Chinese UI** with a **level-select menu** (levels unlock as you clear them,
   saved in your browser).
-- **13 hand-designed levels** across day, dusk, night, **snow**, **cave** and
-  **castle** themes (with falling snow, glowing crystals and bubbling lava),
-  each ending in a flagpole + fireworks. Difficulty **ramps hard** from a gentle
-  World 1 to a punishing World 4 gauntlet (dense pits, Spinies, Paratroopas and
-  tighter timers), yet **every level is automatically verified completable** by a
+- **15 hand-designed levels** across day, dusk, night, **snow**, **cave**,
+  **underwater** and **castle** themes (with falling snow, glowing crystals,
+  god-rays + swaying seaweed, and bubbling lava), each ending in a flagpole +
+  fireworks. Difficulty **ramps hard** from a gentle World 1 to a punishing
+  World 4 gauntlet and a **World 5 underwater** stretch, yet **every level
+  (including the swimming ones) is automatically verified completable** by a
   headless auto-pilot in the tests, so no stage can ship un-runnable.
-- **Three detailed, multi-attack bosses** — a mid-game **Hammer King** (lobs
-  arcing hammers), a fast single-phase **Shadow Bowser** fortress guardian, and
-  a climactic **three-phase Bowser** (5 HP × 3). Each telegraphs then picks from
-  several moves: **fire stream**, **3-way spread**, **leaping ground slam** (with
-  shockwaves), a **rushing charge**, and — in the final phase — a **rain of
-  fireballs**. He rages faster each phase. Beat him with projectiles or the
-  bridge **axe**; stomping fails.
+- **A full underwater world** *(new)* — real swimming physics: weak constant
+  gravity you fight with repeatable **strokes** (tap jump to paddle up, release
+  to sink), a sandy seabed with coral pillars to swim over, and **Cheep Cheep**
+  fish patrolling wavy lanes that you pop with a fireball, boomerang or star.
+- **Three detailed, multi-attack bosses with chunky segmented health bars** — a
+  mid-game **Hammer King** (5 HP), a fast single-phase **Shadow Bowser** (7 HP),
+  and a climactic **three-phase Bowser** (6 HP × 3). Each telegraphs then picks
+  from several moves: **fire stream**, **3-way spread**, **leaping ground slam**
+  (with shockwaves), a **rushing charge**, and — in the final phase — a **rain
+  of fireballs**. He rages faster each phase. The boss bar is a thick, glossy,
+  segmented gauge with per-phase pips. Beat him with projectiles or the bridge
+  **axe**; stomping fails.
 - **Six power-up forms, each with a clear role** (a data-driven table drives
   pickups + tooltips; grabbing a form you already have stashes a spare):
   - 🍄 **Mushroom** — grow / take an extra hit.
@@ -58,8 +64,12 @@ the Web Audio API, so the whole thing is self-contained.
 - **Enemies** — Goombas, Koopa Troopas with full shell mechanics (stomp → kick
   → spinning shell combos), **Piranha Plants** that rise from pipes and duck
   when you stand near, spiked **Spinies** that **can't be stomped** (leap them or
-  use a fireball/iceball/shell/star), and **Paratroopas** *(new)* — winged
-  Koopas that hop in place and shed their wings into a ground Koopa when stomped.
+  use a fireball/iceball/shell/star), **Paratroopas** — winged Koopas that hop in
+  place and shed their wings into a ground Koopa when stomped — and **Cheep
+  Cheeps** *(new)* — underwater fish that swim wavy lanes and can't be stomped.
+- **Animation & game-feel polish** — idle breathing + blink, a dedicated swim
+  stroke pose, power-up collect sparkles, rising air bubbles underwater, plus
+  the existing squash-and-stretch, dust and screen-shake.
 - **Interactive blocks** — `?` blocks (coins / mushroom→fire / ice / star /
   1-up), breakable bricks (when powered up) with flying debris, animated coins.
 - **Scoring** — stomps, shell kicks, projectile kills, coins, bricks,
@@ -106,14 +116,14 @@ Then open <http://localhost:3000>.
 npm test
 ```
 
-126 tests cover level integrity, collision/physics edge cases (gravity, walls,
-pits, growing/shrinking, enemy ledge-turning), every power-up (fire/ice/leaf
-glide+spin/boomerang/star/reserve), enemy behaviours (incl. the un-stompable
-**Spiny** and the de-winging **Paratroopa**), the three-phase boss fight (phases,
-axe, fire-breath), a headless run of the full game loop — and, crucially, an
-**auto-pilot that proves every non-boss level is actually completable** (it runs
-and jumps through each level using the real physics; any level it can't clear
-fails CI).
+141 tests cover level integrity, collision/physics edge cases (gravity, walls,
+pits, growing/shrinking, enemy ledge-turning), **underwater swim physics**, every
+power-up (fire/ice/leaf glide+spin/boomerang/star/reserve), enemy behaviours
+(incl. the un-stompable **Spiny**, the de-winging **Paratroopa** and the
+**Cheep Cheep**), the three-phase boss fight (phases, axe, fire-breath), a
+headless run of the full game loop — and, crucially, an **auto-pilot that proves
+every non-boss level (land and water) is actually completable** (it runs, jumps
+and swims each level using the real physics; any level it can't clear fails CI).
 
 ## API
 

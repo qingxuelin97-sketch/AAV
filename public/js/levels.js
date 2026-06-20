@@ -63,6 +63,15 @@ class LevelBuilder {
   para(col, row = this.height - 3) {
     this.set(col, row, T.PARATROOPA);
   }
+  // A Cheep Cheep fish, swimming in an upper-water lane (off the floor path).
+  cheep(col, row) {
+    this.set(col, row, T.CHEEP);
+  }
+  // A coral/rock pillar rising `h` tiles from the seabed (an obstacle to swim
+  // over). Kept short so a couple of strokes always clear it.
+  coral(col, h = 2) {
+    for (let i = 0; i < h; i++) this.set(col, this.height - 3 - i, T.HARD);
+  }
   flag(col) {
     for (let r = 3; r <= this.height - 3; r++) this.set(col, r, T.FLAGPOLE);
     this.set(col, this.height - 2, T.FLAGBASE);
@@ -647,7 +656,93 @@ function abyss3() {
 }
 
 // ---------------------------------------------------------------------------
-// World 4-castle — the final, three-phase Bowser battle.
+// World 5-1 — "深海" underwater: swim with strokes, dodge Cheep Cheeps.
+// A continuous sea floor (no fatal pits) with coral pillars to swim over.
+// ---------------------------------------------------------------------------
+function water1() {
+  const w = 200;
+  const b = new LevelBuilder(w);
+  b.ground(0, w - 1);
+
+  b.set(6, 9, T.QBLOCK_MUSH);
+  b.set(8, 9, T.QBLOCK_BOOM); // boomerang is great underwater
+  b.coins(8, 12, 16);
+
+  b.coral(24, 2);
+  b.cheep(20, 6);
+  b.cheep(34, 8);
+  b.coins(7, 40, 44);
+  b.coral(48, 2);
+  b.coral(50, 2);
+
+  b.cheep(58, 5);
+  b.cheep(70, 7);
+  b.set(64, 9, T.QBLOCK_ICE);
+  b.coral(80, 3);
+  b.coins(6, 86, 92);
+
+  b.cheep(96, 6);
+  b.cheep(108, 8);
+  b.cheep(120, 5);
+  b.coral(112, 2);
+  b.set(116, 9, T.QBLOCK_1UP);
+
+  b.cheep(140, 7);
+  b.coral(146, 2);
+  b.cheep(158, 6);
+  b.coins(7, 164, 170);
+  b.cheep(176, 7);
+
+  return { name: "5-1", time: 400, bg: "water", water: true, flagCol: b.flag(190), tiles: b.toRows(), width: w };
+}
+
+// ---------------------------------------------------------------------------
+// World 5-2 — "暗礁" deeper reef: denser fish + taller coral mazes.
+// ---------------------------------------------------------------------------
+function water2() {
+  const w = 210;
+  const b = new LevelBuilder(w);
+  b.ground(0, w - 1);
+
+  b.set(6, 9, T.QBLOCK_LEAF);
+  b.set(8, 9, T.QBLOCK_MUSH);
+  b.coins(8, 12, 16);
+
+  b.coral(22, 2);
+  b.coral(24, 3);
+  b.cheep(20, 6);
+  b.cheep(32, 8);
+  b.cheep(38, 5);
+  b.coins(7, 44, 48);
+
+  b.coral(56, 2);
+  b.cheep(60, 7);
+  b.cheep(72, 6);
+  b.cheep(78, 9);
+  b.set(66, 9, T.QBLOCK_BOOM);
+  b.coral(86, 3);
+  b.coral(88, 2);
+
+  b.cheep(98, 6);
+  b.cheep(106, 8);
+  b.cheep(118, 5);
+  b.cheep(124, 7);
+  b.coins(6, 130, 136);
+  b.set(132, 9, T.QBLOCK_STAR);
+
+  b.coral(146, 2);
+  b.cheep(150, 6);
+  b.cheep(162, 8);
+  b.coral(168, 3);
+  b.cheep(178, 6);
+  b.set(150, 9, T.QBLOCK_1UP);
+  b.cheep(190, 7);
+
+  return { name: "5-2", time: 400, bg: "water", water: true, flagCol: b.flag(200), tiles: b.toRows(), width: w };
+}
+
+// ---------------------------------------------------------------------------
+// World-castle — the final, three-phase Bowser battle.
 // ---------------------------------------------------------------------------
 function finalBoss() {
   const w = 78;
@@ -701,5 +796,7 @@ export const LEVELS = [
   abyss1(),
   abyss2(),
   abyss3(),
+  water1(),
+  water2(),
   finalBoss(),
 ];

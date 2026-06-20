@@ -30,6 +30,13 @@ export const TAIL_GLIDE_VY = 95; // capped fall speed while gliding with the lea
 export const TAIL_SPIN_TIME = 0.42; // duration of a tail-spin attack
 export const BOOMERANG_SPEED = 430;
 export const BOOMERANG_RANGE = 230; // px travelled before it turns back
+// Underwater swimming — weak constant gravity you fight with repeatable strokes.
+export const WATER_GRAVITY = 560;
+export const WATER_MAX_FALL = 150; // slow sink
+export const WATER_STROKE = -250; // upward impulse per paddle
+export const WATER_ACCEL = 620;
+export const WATER_MAX = 165;
+export const WATER_FRICTION = 420;
 
 // Tile legend ---------------------------------------------------------------
 export const T = {
@@ -57,6 +64,7 @@ export const T = {
   KOOPA: "k",
   SPINY: "s", // spiked enemy — can't be stomped, needs fire/ice/star/shell
   PARATROOPA: "p", // winged Koopa that hops; stomp removes wings
+  CHEEP: "c", // Cheep Cheep — swims in underwater levels
   PIRANHA: "v", // sits in the pipe below this marker
   BOSS: "W", // Bowser
   AXE: "A", // touch to defeat the boss (classic bridge axe)

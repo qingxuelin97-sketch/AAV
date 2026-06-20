@@ -26,6 +26,12 @@ import {
   TAIL_SPIN_TIME,
   BOOMERANG_SPEED,
   BOOMERANG_RANGE,
+  WATER_GRAVITY,
+  WATER_MAX_FALL,
+  WATER_STROKE,
+  WATER_ACCEL,
+  WATER_MAX,
+  WATER_FRICTION,
 } from "./constants.js";
 import * as Sprites from "./sprites.js";
 
@@ -152,6 +158,10 @@ export class Player extends Body {
     this.spinTimer = 0; // tail-spin attack window
     this.spinCooldown = 0;
     this.gliding = false; // leaf slow-fall this frame (for the draw + dust)
+    this.inWater = false;
+    this.strokeTimer = 0; // recent swim-stroke (drives the swim pose)
+    this.idleTimer = 0; // drives idle breathing/blink animation
+    this.blink = 0;
   }
 
   // Forms that throw/act on the "run" button instead of just running.
@@ -206,26 +216,28 @@ export class Player extends Body {
     this.gliding = false;
 
     this.skid = false;
+    const water = !!(world.def && world.def.water);
+    this.inWater = water;
 
     if (this.controllable) {
       const running = input.state.run;
-      const accel = running ? RUN_ACCEL : WALK_ACCEL;
-      const maxSpeed = running ? RUN_MAX : WALK_MAX;
+      const accel = water ? WATER_ACCEL : running ? RUN_ACCEL : WALK_ACCEL;
+      const maxSpeed = water ? WATER_MAX : running ? RUN_MAX : WALK_MAX;
 
       let dir = 0;
       if (input.state.left) dir -= 1;
       if (input.state.right) dir += 1;
 
       if (dir !== 0) {
-        // Skidding: pressing opposite to current momentum.
-        if (this.onGround && Math.sign(this.vx) === -dir && Math.abs(this.vx) > 40) {
+        // Skidding: pressing opposite to current momentum (on land only).
+        if (!water && this.onGround && Math.sign(this.vx) === -dir && Math.abs(this.vx) > 40) {
           this.skid = true;
         }
         this.vx += dir * accel * dt;
         this.facing = dir;
         this.vx = Math.max(-maxSpeed, Math.min(maxSpeed, this.vx));
       } else {
-        const f = (this.onGround ? FRICTION : AIR_FRICTION) * dt;
+        const f = (water ? WATER_FRICTION : this.onGround ? FRICTION : AIR_FRICTION) * dt;
         if (this.vx > 0) this.vx = Math.max(0, this.vx - f);
         else if (this.vx < 0) this.vx = Math.min(0, this.vx + f);
       }
@@ -245,34 +257,48 @@ export class Player extends Body {
         }
       }
 
-      // Jump with coyote time + input buffering + variable height.
-      if (input.consume("jump")) this.jumpBuffer = JUMP_BUFFER;
-      if (this.jumpBuffer > 0) this.jumpBuffer -= dt;
-      if (this.onGround) this.coyote = COYOTE_TIME;
-      else if (this.coyote > 0) this.coyote -= dt;
+      if (water) {
+        // Swim stroke: each press paddles upward; repeatable, no ground needed.
+        if (input.consume("jump")) {
+          this.vy = WATER_STROKE;
+          this.strokeTimer = 0.3;
+          game.audio.jump();
+          game.spawnBubble?.(this.cx, this.y + this.h * 0.5);
+        }
+        if (this.strokeTimer > 0) this.strokeTimer -= dt;
+      } else {
+        // Jump with coyote time + input buffering + variable height.
+        if (input.consume("jump")) this.jumpBuffer = JUMP_BUFFER;
+        if (this.jumpBuffer > 0) this.jumpBuffer -= dt;
+        if (this.onGround) this.coyote = COYOTE_TIME;
+        else if (this.coyote > 0) this.coyote -= dt;
 
-      if (this.jumpBuffer > 0 && this.coyote > 0) {
-        this.vy = Math.abs(this.vx) > WALK_MAX ? JUMP_VELOCITY_RUN : JUMP_VELOCITY;
-        this.onGround = false;
-        this.coyote = 0;
-        this.jumpBuffer = 0;
-        this.jumpHeld = true;
-        game.audio.jump();
-      }
+        if (this.jumpBuffer > 0 && this.coyote > 0) {
+          this.vy = Math.abs(this.vx) > WALK_MAX ? JUMP_VELOCITY_RUN : JUMP_VELOCITY;
+          this.onGround = false;
+          this.coyote = 0;
+          this.jumpBuffer = 0;
+          this.jumpHeld = true;
+          game.audio.jump();
+        }
 
-      if (this.jumpHeld && !input.state.jump && this.vy < 0) {
-        this.vy *= JUMP_CUTOFF;
-        this.jumpHeld = false;
+        if (this.jumpHeld && !input.state.jump && this.vy < 0) {
+          this.vy *= JUMP_CUTOFF;
+          this.jumpHeld = false;
+        }
+        if (!input.state.jump) this.jumpHeld = false;
       }
-      if (!input.state.jump) this.jumpHeld = false;
     } else {
       this.vx = this.autoVx || 0;
     }
 
-    this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt);
+    this.vy = water
+      ? Math.min(WATER_MAX_FALL, this.vy + WATER_GRAVITY * dt)
+      : Math.min(MAX_FALL, this.vy + GRAVITY * dt);
 
     // Leaf glide: wag the tail (hold jump) while falling to drift down slowly.
     if (
+      !water &&
       this.power === "tail" &&
       this.controllable &&
       !this.onGround &&
@@ -322,6 +348,17 @@ export class Player extends Body {
       this.walkFrame = 0;
     }
 
+    // Idle breathing + occasional blink (when standing still on the ground).
+    if (this.onGround && Math.abs(this.vx) < 12 && this.controllable) {
+      this.idleTimer += dt;
+      this.blink -= dt;
+      if (this.blink <= 0) this.blink = 2.4 + Math.random() * 2.5;
+    } else {
+      this.idleTimer = 0;
+    }
+
+    // Underwater you never plummet to your death — there's a sea floor — but a
+    // bottomless gap still ends a run.
     if (this.y > world.pixelHeight + 80) {
       game.killPlayer(true);
     }
@@ -361,13 +398,17 @@ export class Player extends Body {
       {
         facing: this.facing,
         walkFrame: this.walkFrame,
-        jumping: !this.onGround,
+        jumping: !this.onGround && !this.inWater,
         power: this.power,
         invincible: this.invincible > 0,
         star: this.starTime > 0,
         skid: this.skid,
         gliding: this.gliding,
         spinning: this.spinTimer > 0,
+        swimming: this.inWater,
+        stroke: this.strokeTimer > 0,
+        idle: this.idleTimer,
+        blinking: this.blink <= 0.12 && this.blink > 0,
       }
     );
     ctx.restore();
@@ -994,6 +1035,42 @@ export class Paratroopa extends Body {
     const box = { x: this.x, y: this.y, w: this.w, h: this.h };
     Sprites.drawParatroopa(ctx, box, { walkFrame: this.walkFrame, facing: this.facing });
     if (this.state === "frozen") Sprites.drawFrozenOverlay(ctx, box);
+  }
+}
+
+// --------------------------------------------------------------------------
+// Cheep Cheep — a fish that patrols an upper-water lane in a wavy line. It
+// hurts on contact (no stomp underwater); pop it with a fireball, boomerang or
+// star. Kept above the floor lane so it's a fair, dodgeable hazard.
+// --------------------------------------------------------------------------
+export class CheepCheep extends Body {
+  constructor(col, row) {
+    super(col * TILE, row * TILE, 28, 22);
+    this.kind = "cheep";
+    this.baseY = this.y;
+    this.spawnX = this.x;
+    this.range = TILE * 5;
+    this.vx = -ENEMY_SPEED * 1.1;
+    this.facing = -1;
+    this.t = Math.random() * 6;
+    this.amp = 14 + Math.random() * 10;
+  }
+  freeze() {} // fish ignore ice (kept simple); fire/boomerang/star handle them
+  update(dt) {
+    this.t += dt;
+    this.x += this.vx * dt;
+    if (Math.abs(this.x - this.spawnX) > this.range) {
+      this.vx = -this.vx;
+      this.x = this.spawnX + Math.sign(this.x - this.spawnX) * this.range;
+    }
+    this.facing = this.vx > 0 ? 1 : -1;
+    this.y = this.baseY + Math.sin(this.t * 3) * this.amp;
+  }
+  draw(ctx) {
+    Sprites.drawCheep(ctx, { x: this.x, y: this.y, w: this.w, h: this.h }, {
+      facing: this.facing,
+      t: this.t,
+    });
   }
 }
 

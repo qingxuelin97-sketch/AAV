@@ -81,9 +81,9 @@ test("the mini-boss has less health and advances to the next level", () => {
   const game = makeGame();
   const boss = loadBoss(game, MINI_INDEX);
   assert.equal(boss.maxPhase, 1);
-  assert.equal(boss.hpPerPhase, 4);
+  assert.equal(boss.hpPerPhase, 5);
   game.player.setPower("fire");
-  for (let i = 0; i < 4; i++) hitBoss(game, boss);
+  for (let i = 0; i < boss.hpPerPhase; i++) hitBoss(game, boss);
   assert.equal(boss.state, "dead");
   for (let i = 0; i < 300 && game.state === STATE.LEVEL_CLEAR; i++) game.update(1 / 60);
   assert.ok(game.levelIndex > MINI_INDEX, "advanced past the mini-boss");

@@ -11,9 +11,11 @@ import {
   Goomba,
   Spiny,
   Paratroopa,
+  CheepCheep,
   PiranhaPlant,
 } from "../public/js/entities.js";
 import { TAIL_GLIDE_VY } from "../public/js/constants.js";
+import { LEVELS } from "../public/js/levels.js";
 
 function makeCtx() {
   const ctx = {
@@ -222,6 +224,56 @@ test("stomping a Paratroopa shears its wings into a walking Koopa", () => {
   game.handleEnemyCollisions();
   assert.ok(para.dead, "the winged form is removed");
   assert.ok(game.entities.some((e) => e.constructor.name === "Koopa"), "a ground Koopa dropped");
+});
+
+test("a Cheep Cheep hurts the player on contact (no underwater stomp)", () => {
+  const game = makeGame();
+  game.player.setPower("big");
+  const cheep = new CheepCheep(20, 0);
+  cheep.x = game.player.x;
+  cheep.y = game.player.y;
+  game.entities.push(cheep);
+  game.handleCheepCollisions();
+  assert.equal(game.player.power, "small", "the fish hit shrank big Mario");
+  assert.ok(!cheep.dead, "the fish swims on");
+});
+
+test("a fireball pops a Cheep Cheep", () => {
+  const game = makeGame();
+  game.player.setPower("fire");
+  const cheep = new CheepCheep(20, 0);
+  game.entities.push(cheep);
+  game.spawnFireball(game.player);
+  const fb = game.fireballs[0];
+  fb.x = cheep.x;
+  fb.y = cheep.y;
+  game.handleFireballCollisions();
+  assert.ok(cheep.dead, "fish defeated");
+  assert.ok(fb.dead, "fireball consumed");
+});
+
+test("underwater, a stroke paddles the player upward against weak gravity", () => {
+  const idx = LEVELS.findIndex((l) => l.water);
+  assert.ok(idx >= 0, "there is an underwater level");
+  const game = makeGame();
+  game.startAt(idx);
+  assert.ok(game.world.def.water, "loaded a water level");
+  const p = game.player;
+  p.vy = 100; // sinking
+  let stroked = false;
+  const input = {
+    state: { left: false, right: false, jump: false, run: false },
+    consume: (a) => {
+      if (a === "jump" && !stroked) {
+        stroked = true;
+        return true;
+      }
+      return false;
+    },
+  };
+  p.update(1 / 60, input, game.world, game);
+  assert.ok(p.vy < 0, "the stroke reversed the sink into an upward paddle");
+  assert.ok(p.inWater, "player knows it is underwater");
 });
 
 test("fireball destroys a goomba", () => {

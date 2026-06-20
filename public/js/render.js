@@ -9,6 +9,7 @@ const SKY = {
   night: ["#0a0a2a", "#1a1a4a"],
   snow: ["#8fb8e8", "#dceaf7"],
   cave: ["#0c1418", "#142730"],
+  water: ["#2a86c4", "#0b3a66"],
   castle: ["#1a0d12", "#3a1416"],
 };
 
@@ -43,6 +44,11 @@ export function drawBackground(ctx, cam, def, time = 0) {
 
   if (def.bg === "cave") {
     drawCaveBg(ctx, cam, def, time);
+    return;
+  }
+
+  if (def.bg === "water") {
+    drawWaterBg(ctx, cam, def, time);
     return;
   }
 
@@ -190,6 +196,66 @@ function drawCaveBg(ctx, cam, def, time) {
     ctx.fillRect(sx, y, 3, 5);
   }
   ctx.globalAlpha = 1;
+}
+
+// Underwater: god-rays slanting from the surface, swaying seaweed on the
+// seabed, and drifting distant bubbles for depth.
+function drawWaterBg(ctx, cam, def, time) {
+  // Caustic light rays from above.
+  ctx.save();
+  ctx.globalAlpha = 0.10;
+  ctx.fillStyle = "#dff3ff";
+  for (let i = -2; i < 8; i++) {
+    const x = ((i * 150 - cam.x * 0.2) % (VIEW_W + 300)) + ((cam.x * 0.2) % 150);
+    const sway = Math.sin(time * 0.6 + i) * 18;
+    ctx.beginPath();
+    ctx.moveTo(x + sway, 0);
+    ctx.lineTo(x + 70 + sway, 0);
+    ctx.lineTo(x + 160, VIEW_H);
+    ctx.lineTo(x + 40, VIEW_H);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // Distant drifting bubbles.
+  const r = rng(def.width * 13 + 7);
+  ctx.fillStyle = "rgba(220,240,255,0.35)";
+  for (let i = 0; i < 36; i++) {
+    const bx = (r() * def.width * TILE - cam.x * 0.5);
+    const sx = ((bx % (def.width * TILE)) + def.width * TILE) % (def.width * TILE);
+    if (sx < -10 || sx > VIEW_W + 10) continue;
+    const drift = (time * (10 + r() * 20)) % VIEW_H;
+    const by = (VIEW_H - drift + r() * VIEW_H) % VIEW_H;
+    const s = r() > 0.7 ? 4 : 2;
+    ctx.beginPath();
+    ctx.arc(sx, by, s, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Swaying seaweed rooted on the seabed.
+  const baseY = VIEW_H - TILE * 2;
+  const offset = cam.x * 0.85;
+  const r2 = rng(def.width * 5 + 1);
+  for (let i = 0; i < def.width / 4; i++) {
+    const wx = i * 4 * TILE + r2() * 80 - offset;
+    if (wx < -30 || wx > VIEW_W + 30) {
+      r2();
+      continue;
+    }
+    const h = 30 + r2() * 50;
+    const hue = r2() > 0.5 ? "#1f7a4a" : "#2e9c5a";
+    ctx.strokeStyle = hue;
+    ctx.lineWidth = 4 + r2() * 3;
+    ctx.beginPath();
+    ctx.moveTo(wx, baseY);
+    for (let s = 1; s <= 4; s++) {
+      const yy = baseY - (h * s) / 4;
+      const xx = wx + Math.sin(time * 1.4 + s + i) * 8;
+      ctx.lineTo(xx, yy);
+    }
+    ctx.stroke();
+  }
 }
 
 // Castle interior: dark pillars and a glowing, bubbling lava strip.
@@ -347,6 +413,7 @@ const GROUND_THEME = {
   night: { fill: "#3a3550", stud: "#2a2640", lt: "#5a5170", dk: "#1f1c30", top: "#2f5a3a", top2: "#214a2c" },
   snow: { fill: "#a8c4dc", stud: "#8aa8c4", lt: "#d0e4f2", dk: "#6a8aa6", top: "#ffffff", top2: "#d8ebf7" },
   cave: { fill: "#3a4a52", stud: "#2a363c", lt: "#52656e", dk: "#1c262b", top: "#2f6a5a", top2: "#214a3e" },
+  water: { fill: "#cdb884", stud: "#b09a64", lt: "#e6d6a4", dk: "#9a8049", top: "#9fc28a", top2: "#7fa86a" },
   castle: { fill: "#4a4458", stud: "#332f42", lt: "#665f78", dk: "#221f2e", top: null, top2: null },
 };
 

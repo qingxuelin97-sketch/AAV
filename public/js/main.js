@@ -96,7 +96,7 @@ function resetSubmitUI(btn, nameInput) {
 }
 
 // ---- Level select ---------------------------------------------------------
-const LEVEL_EMOJI = { day: "☀️", dusk: "🌆", night: "🌙", snow: "❄️", cave: "🕳️", castle: "🏰" };
+const LEVEL_EMOJI = { day: "☀️", dusk: "🌆", night: "🌙", snow: "❄️", cave: "🕳️", water: "🌊", castle: "🏰" };
 
 function buildLevelGrid() {
   const grid = $("level-grid");
