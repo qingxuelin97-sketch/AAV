@@ -724,6 +724,110 @@ export function drawBowser(ctx, box, opts = {}) {
   }
 }
 
+// Kraken / Boss Bass — the underwater boss: a big hovering squid with a
+// glowing beak (lights up when telegraphing) and waving tentacles.
+export function drawKraken(ctx, box, opts = {}) {
+  const { facing = -1, hurt = false, dead = false, tint = null, stunned = false, telegraph = false } = opts;
+  const { x, y, w, h } = box;
+  ctx.save();
+  if (hurt && Math.floor(performance.now() / 60) % 2 === 0) ctx.globalAlpha = 0.55;
+  if (facing > 0) {
+    ctx.translate(x + w, y);
+    ctx.scale(-1, 1);
+  } else {
+    ctx.translate(x, y);
+  }
+  if (dead) {
+    ctx.translate(w / 2, h / 2);
+    ctx.rotate(Math.PI);
+    ctx.translate(-w / 2, -h / 2);
+  }
+  const t = performance.now() / 1000;
+  const BODY = "#2a86a0", BODY2 = "#3fb0c8", BODY3 = "#8fe6f2", DARK = "#1c5e72";
+
+  // Waving tentacles (drawn first, behind the body).
+  ctx.strokeStyle = BODY;
+  ctx.lineWidth = Math.max(3, w * 0.06);
+  for (let i = 0; i < 6; i++) {
+    const tx = w * (0.2 + i * 0.12);
+    ctx.beginPath();
+    ctx.moveTo(tx, h * 0.62);
+    for (let s = 1; s <= 3; s++) {
+      const yy = h * (0.62 + s * 0.12);
+      const xx = tx + Math.sin(t * 4 + i + s) * w * 0.05;
+      ctx.lineTo(xx, yy);
+    }
+    ctx.stroke();
+  }
+  // suction dots on a couple of front tentacles
+  ctx.fillStyle = BODY3;
+  for (let s = 0; s < 3; s++) ctx.fillRect(w * 0.2, h * (0.66 + s * 0.12), 3, 3);
+
+  // Mantle / head (a rounded dome with a pointed top).
+  ctx.fillStyle = BODY;
+  ctx.beginPath();
+  ctx.moveTo(w * 0.5, h * 0.04);
+  ctx.quadraticCurveTo(w * 0.98, h * 0.18, w * 0.86, h * 0.6);
+  ctx.quadraticCurveTo(w * 0.5, h * 0.74, w * 0.14, h * 0.6);
+  ctx.quadraticCurveTo(w * 0.02, h * 0.18, w * 0.5, h * 0.04);
+  ctx.fill();
+  // shading + highlight
+  ctx.fillStyle = BODY2;
+  ctx.beginPath();
+  ctx.ellipse ? ctx.ellipse(w * 0.5, h * 0.34, w * 0.3, h * 0.22, 0, 0, Math.PI * 2) : ctx.rect(w * 0.2, h * 0.14, w * 0.6, h * 0.4);
+  ctx.fill();
+  ctx.fillStyle = BODY3;
+  ctx.fillRect(w * 0.36, h * 0.12, w * 0.12, h * 0.06);
+
+  // Big eyes.
+  for (const ex of [0.34, 0.62]) {
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(w * ex, h * 0.38, w * 0.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#10303a";
+    ctx.beginPath();
+    ctx.arc(w * ex + (facing > 0 ? 2 : -2), h * 0.4, w * 0.045, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // angry brow
+  ctx.fillStyle = DARK;
+  ctx.fillRect(w * 0.26, h * 0.3, w * 0.2, h * 0.03);
+  ctx.fillRect(w * 0.56, h * 0.3, w * 0.2, h * 0.03);
+
+  // Beak / mouth — glows when about to attack.
+  ctx.fillStyle = telegraph ? "#ffd23f" : "#f4b942";
+  ctx.beginPath();
+  ctx.moveTo(w * 0.42, h * 0.56);
+  ctx.lineTo(w * 0.58, h * 0.56);
+  ctx.lineTo(w * 0.5, h * 0.66);
+  ctx.closePath();
+  ctx.fill();
+  if (telegraph) {
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = "#fff7c0";
+    ctx.beginPath();
+    ctx.arc(w * 0.5, h * 0.6, w * 0.14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  if (stunned) {
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = "#bfe9ff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+  if (tint && !dead) {
+    ctx.save();
+    ctx.globalAlpha = 0.28;
+    ctx.fillStyle = tint;
+    ctx.fillRect(x, y, w, h);
+    ctx.restore();
+  }
+}
+
 // Hammer King — the mid-game mini-boss: a burly armoured Koopa with a mallet.
 export function drawHammerKing(ctx, box, opts = {}) {
   const { facing = -1, walkFrame = 0, hurt = false, dead = false, tint = null, stunned = false, telegraph = false } = opts;

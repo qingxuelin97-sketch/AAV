@@ -742,6 +742,44 @@ function water2() {
 }
 
 // ---------------------------------------------------------------------------
+// World 5-3 — the underwater boss: the hovering Kraken (深海霸王).
+// ---------------------------------------------------------------------------
+function waterBoss() {
+  const w = 82;
+  const b = new LevelBuilder(w);
+  b.ground(0, w - 1);
+
+  // Stock up before the fight (boomerang is ideal underwater).
+  b.set(5, 9, T.QBLOCK_MUSH);
+  b.set(8, 9, T.QBLOCK_BOOM);
+  b.set(12, 9, T.QBLOCK_MUSH);
+  b.set(15, 9, T.QBLOCK_1UP);
+  b.coins(7, 18, 22);
+  b.coral(28, 2);
+  b.coral(30, 2);
+
+  // Arena — the Kraken hovers around the middle of the water.
+  b.set(44, 6, T.BOSS);
+
+  // Bridge axe on a coral spire near the far end (a guaranteed win route).
+  b.set(68, b.height - 3, T.HARD);
+  b.set(68, b.height - 4, T.AXE);
+  for (let r = b.height - 7; r < b.height - 1; r++) b.set(72, r, T.HARD);
+
+  return {
+    name: "5-3",
+    time: 300,
+    bg: "water",
+    water: true,
+    flagCol: w + 5,
+    boss: true,
+    bossType: "kraken",
+    tiles: b.toRows(),
+    width: w,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // World-castle — the final, three-phase Bowser battle.
 // ---------------------------------------------------------------------------
 function finalBoss() {
@@ -798,5 +836,6 @@ export const LEVELS = [
   abyss3(),
   water1(),
   water2(),
+  waterBoss(),
   finalBoss(),
 ];
