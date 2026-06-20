@@ -112,7 +112,11 @@ export function drawMario(ctx, box, opts = {}) {
   fr(ctx, box, 0.30, 0.13, 0.46, 0.18, PAL.skin, flip); // face
   fr(ctx, box, 0.28, 0.13, 0.07, 0.18, PAL.brown, flip); // sideburn
   fr(ctx, box, 0.72, 0.20, 0.12, 0.09, PAL.skin, flip); // nose
-  fr(ctx, box, 0.55, 0.16, 0.06, 0.07, PAL.black, flip); // eye
+  if (opts.blinking) {
+    fr(ctx, box, 0.54, 0.205, 0.08, 0.02, PAL.brown, flip); // closed eye
+  } else {
+    fr(ctx, box, 0.55, 0.16, 0.06, 0.07, PAL.black, flip); // eye
+  }
   fr(ctx, box, 0.44, 0.26, 0.30, 0.05, PAL.brown, flip); // mustache
 
   // Torso (shirt)
@@ -124,7 +128,8 @@ export function drawMario(ctx, box, opts = {}) {
   fr(ctx, box, 0.33, 0.44, 0.06, 0.06, PAL.yellow, flip); // button
   fr(ctx, box, 0.60, 0.44, 0.06, 0.06, PAL.yellow, flip); // button
 
-  if (skid && !jumping) {
+  const airPose = jumping || opts.swimming;
+  if (skid && !airPose) {
     // Skid pose: front arm out, leaning back.
     fr(ctx, box, 0.74, 0.30, 0.16, 0.12, shirt, flip);
     fr(ctx, box, 0.84, 0.30, 0.10, 0.08, PAL.skin, flip);
@@ -132,6 +137,17 @@ export function drawMario(ctx, box, opts = {}) {
     fr(ctx, box, 0.52, 0.66, 0.18, 0.18, overall, flip);
     fr(ctx, box, 0.24, 0.84, 0.26, 0.14, PAL.brown, flip);
     fr(ctx, box, 0.52, 0.84, 0.26, 0.14, PAL.brown, flip);
+  } else if (opts.swimming) {
+    // Swim pose: both arms forward-ish, legs kicking (frog kick on stroke).
+    const kick = opts.stroke ? 0.06 : 0;
+    fr(ctx, box, 0.74, 0.30, 0.16, 0.10, shirt, flip); // front arm out
+    fr(ctx, box, 0.86, 0.30, 0.10, 0.08, PAL.skin, flip);
+    fr(ctx, box, 0.08, 0.34, 0.12, 0.10, shirt, flip); // back arm
+    fr(ctx, box, 0.08, 0.42, 0.12, 0.07, PAL.skin, flip);
+    fr(ctx, box, 0.28, 0.66, 0.18, 0.18, overall, flip);
+    fr(ctx, box, 0.54, 0.66, 0.18, 0.18, overall, flip);
+    fr(ctx, box, 0.20 - kick, 0.82, 0.26, 0.13, PAL.brown, flip); // kicking feet
+    fr(ctx, box, 0.54 + kick, 0.82, 0.26, 0.13, PAL.brown, flip);
   } else if (jumping) {
     fr(ctx, box, 0.74, 0.22, 0.13, 0.16, shirt, flip); // raised arm
     fr(ctx, box, 0.74, 0.16, 0.13, 0.08, PAL.skin, flip); // raised hand
@@ -307,6 +323,60 @@ export function drawParatroopa(ctx, box, opts = {}) {
   // Feet
   fr(ctx, box, 0.28, 0.82, 0.22, 0.16, "#e0b800", flip);
   fr(ctx, box, 0.62, 0.82, 0.22, 0.16, "#e0b800", flip);
+}
+
+// --------------------------------------------------------------------------
+// Cheep Cheep — a round red fish with a flapping tail fin.
+// --------------------------------------------------------------------------
+export function drawCheep(ctx, box, opts = {}) {
+  const { facing = -1, t = 0 } = opts;
+  const { x, y, w, h } = box;
+  ctx.save();
+  ctx.translate(x + w / 2, y + h / 2);
+  if (facing > 0) ctx.scale(-1, 1); // default art faces left
+  const flap = Math.sin(t * 12) * 0.2;
+  // Tail fin
+  ctx.fillStyle = "#c8261f";
+  ctx.beginPath();
+  ctx.moveTo(w * 0.32, 0);
+  ctx.lineTo(w * 0.55, -h * (0.34 + flap));
+  ctx.lineTo(w * 0.55, h * (0.34 - flap));
+  ctx.closePath();
+  ctx.fill();
+  // Body (scaled circle so we avoid ctx.ellipse for wide stub compatibility)
+  const oval = (ox, oy, rx, ry, col) => {
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.scale(rx, ry);
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(0, 0, 1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  };
+  oval(-w * 0.04, 0, w * 0.4, h * 0.42, "#e23a2f");
+  oval(-w * 0.04, h * 0.12, w * 0.3, h * 0.22, "#ff8a82"); // belly highlight
+  // Pectoral fin
+  ctx.fillStyle = "#ffd23f";
+  ctx.beginPath();
+  ctx.moveTo(-w * 0.08, h * 0.05);
+  ctx.lineTo(-w * 0.28, h * (0.3 + flap));
+  ctx.lineTo(0, h * 0.18);
+  ctx.closePath();
+  ctx.fill();
+  // Lips
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(-w * 0.46, -h * 0.04, w * 0.1, h * 0.12);
+  // Eye
+  ctx.fillStyle = "#fff";
+  ctx.beginPath();
+  ctx.arc(-w * 0.24, -h * 0.12, w * 0.1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#1a1a1a";
+  ctx.beginPath();
+  ctx.arc(-w * 0.26, -h * 0.12, w * 0.045, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 // --------------------------------------------------------------------------
