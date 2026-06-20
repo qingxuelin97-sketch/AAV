@@ -59,6 +59,7 @@ const MUSIC_FOR_BG = { day: "overworld", dusk: "overworld", night: "night", snow
 const BOSS_PRESETS = {
   mini: { variant: "mini", name: "锤子龟王", tint: "#4aa3ff", hp: 5, phases: 1, speed: 95 },
   fortress: { variant: "bowser", name: "暗影库巴", tint: "#8a3fd0", hp: 7, phases: 1, speed: 110 },
+  kraken: { variant: "kraken", name: "深海霸王", tint: "#2aa0b0", hp: 6, phases: 2, speed: 90 },
   bowser: { variant: "bowser", name: "库巴", hp: 6, phases: 3, speed: 95 },
 };
 
@@ -389,6 +390,29 @@ export class Game {
     this.audio.bump();
   }
 
+  // Kraken: a fan of dark ink blobs aimed toward the player.
+  bossInk(boss, player) {
+    const dir = this._bossDir(boss, player);
+    const x = dir < 0 ? boss.x - 6 : boss.x + boss.w - 14;
+    const y = boss.y + boss.h * 0.5;
+    for (const vy of [-150, -40, 70, 180]) {
+      this.bossFireballs.push(new BossFireball(x, y, dir * 260, vy, "fire"));
+    }
+    this.audio.bossFire();
+  }
+
+  // Kraken: summon a Cheep Cheep escort (capped so it never swarms).
+  summonCheep(boss) {
+    const live = this.entities.filter((e) => e.kind === "cheep" && !e.dead).length;
+    if (live >= 3) return;
+    const col = Math.floor(boss.cx / TILE);
+    const row = Math.max(2, Math.floor(boss.cy / TILE) - 1);
+    const cheep = new CheepCheep(col, row);
+    cheep.spawnX = boss.cx;
+    this.entities.push(cheep);
+    this.audio.bump();
+  }
+
   // Final-phase fury: a curtain of fireballs raining down around the player.
   bossRain(boss, player) {
     const cx = player ? player.cx : boss.cx;
@@ -510,14 +534,7 @@ export class Game {
     this.handleItemCollisions();
     this.handleBossCollisions();
 
-    // Ambient rising bubbles in underwater levels.
-    if (world.def.water) {
-      this._bubbleT = (this._bubbleT || 0) - dt;
-      if (this._bubbleT <= 0) {
-        this._bubbleT = 0.25;
-        this.spawnBubble(this.cam.x + Math.random() * VIEW_W, VIEW_H - 10, 1);
-      }
-    }
+    this.spawnAmbient(world.def.bg, dt);
 
     for (const p of this.particles) p.update(dt);
     for (const f of this.floatingTexts) f.update(dt);
@@ -926,6 +943,40 @@ export class Game {
     }
   }
 
+  // Light, theme-flavoured ambient particles for atmosphere (cheap, throttled).
+  spawnAmbient(bg, dt) {
+    this._ambientT = (this._ambientT || 0) - dt;
+    if (this._ambientT > 0) return;
+    const X = this.cam.x + Math.random() * VIEW_W;
+    if (bg === "water") {
+      this._ambientT = 0.25;
+      this.spawnBubble(X, VIEW_H - 10, 1);
+    } else if (bg === "castle") {
+      this._ambientT = 0.2;
+      // glowing embers drifting up from the lava.
+      this.particles.push(
+        new Particle(X, VIEW_H - 12, Math.random() * 30 - 15, -40 - Math.random() * 50,
+          Math.random() > 0.5 ? "#ff8a2a" : "#ffd23f", 2 + Math.random() * 2, 1.1, -0.04)
+      );
+    } else if (bg === "night") {
+      this._ambientT = 0.45;
+      // fireflies blinking mid-air.
+      this.particles.push(
+        new Particle(X, 80 + Math.random() * 240, Math.random() * 20 - 10, -Math.random() * 10,
+          "#bdff7a", 2, 1.3, -0.01)
+      );
+    } else if (bg === "day" || bg === "dusk") {
+      this._ambientT = 0.7;
+      // drifting petals/leaves.
+      this.particles.push(
+        new Particle(X, 40 + Math.random() * 120, -20 - Math.random() * 20, 18,
+          bg === "dusk" ? "#ffb0d0" : "#bff0a0", 3, 1.6, 0.02)
+      );
+    } else {
+      this._ambientT = 0.5;
+    }
+  }
+
   // A rising air bubble (swim strokes + ambient underwater motes).
   spawnBubble(x, y, n = 1) {
     for (let i = 0; i < n; i++) {
@@ -1068,6 +1119,12 @@ export class Game {
 
     if (this.state === STATE.TITLE) {
       drawBackground(ctx, this.cam, LEVELS[0], this.time);
+      // Drifting, bobbing coins for a little life behind the logo.
+      for (let i = 0; i < 6; i++) {
+        const x = ((this.time * 24 + i * 170) % (VIEW_W + 60)) - 30;
+        const y = 90 + i * 52 + Math.sin(this.time * 2 + i) * 14;
+        drawCoin(ctx, { x, y, w: 20, h: 24 }, this.time + i);
+      }
       return;
     }
 

@@ -89,6 +89,23 @@ test("the mini-boss has less health and advances to the next level", () => {
   assert.ok(game.levelIndex > MINI_INDEX, "advanced past the mini-boss");
 });
 
+test("the underwater Kraken hovers, takes projectile damage and is beatable", () => {
+  const game = makeGame();
+  const idx = LEVELS.findIndex((l) => l.bossType === "kraken");
+  assert.ok(idx >= 0, "there is a Kraken boss level");
+  const boss = loadBoss(game, idx);
+  assert.equal(boss.variant, "kraken");
+  assert.equal(game.world.def.water, true, "the Kraken arena is underwater");
+  assert.equal(boss.maxPhase, 2);
+  for (let i = 0; i < 120; i++) game.update(1 / 60); // it should move/hover, not fall
+  assert.ok(boss.y < game.world.pixelHeight, "the Kraken never sinks/falls out of the arena");
+  game.player.setPower("fire");
+  for (let i = 0; i < boss.hpPerPhase * boss.maxPhase; i++) hitBoss(game, boss);
+  assert.equal(boss.state, "dead", "defeated after both phases of hits");
+  for (let i = 0; i < 300 && game.state === STATE.LEVEL_CLEAR; i++) game.update(1 / 60);
+  assert.ok(game.levelIndex > idx, "advanced past the Kraken");
+});
+
 test("touching the axe instantly defeats the boss", () => {
   const game = makeGame();
   const boss = loadBoss(game);

@@ -324,6 +324,13 @@ export class Player extends Body {
       this.x = 0;
       this.vx = 0;
     }
+    // Right edge: don't let the player walk/swim off the end of the world (this
+    // also seals boss arenas, whose off-map "flag" must stay unreachable).
+    const maxX = world.pixelWidth - this.w;
+    if (this.x > maxX) {
+      this.x = maxX;
+      if (this.vx > 0) this.vx = 0;
+    }
 
     // Squash/stretch + dust feedback.
     if (this.squashTimer > 0) this.squashTimer -= dt;
@@ -1110,6 +1117,11 @@ export class Bowser extends Body {
     this.pending = null;
     this.telegraph = false;
     this.slamPending = false;
+    // Hover fields (used by the underwater "kraken" variant).
+    this.hoverY = this.y;
+    this.minY = 2 * TILE;
+    this.maxY = 9 * TILE;
+    this.krakBob = 0;
   }
   get cooldown() {
     return this.enraged ? 0.8 : 1.5;
@@ -1152,6 +1164,11 @@ export class Bowser extends Body {
     return true;
   }
   _pickMove() {
+    if (this.variant === "kraken") {
+      const base = ["ink", "ink", "summon", "lunge"];
+      if (this.phase >= 2) base.push("ink", "lunge", "rain");
+      return base[(Math.random() * base.length) | 0];
+    }
     const base =
       this.variant === "mini"
         ? ["hammers", "hammers", "charge", "slam"]
@@ -1159,6 +1176,63 @@ export class Bowser extends Body {
     if (this.phase >= 2) base.push("spread", "breathe", "charge");
     if (this.phase >= 3) base.push("rain", "rain", "spread"); // final-phase fury
     return base[(Math.random() * base.length) | 0];
+  }
+
+  // Hovering boss: drifts toward the player in both axes, telegraphs, then
+  // spits ink, summons a Cheep Cheep, or lunges. Ice still stuns it.
+  _krakenUpdate(dt, world, player, game) {
+    this.krakBob += dt;
+    if (this.stunTimer > 0) {
+      this.stunTimer -= dt;
+      this.vx = 0;
+      return;
+    }
+    if (player) this.facing = player.cx < this.cx ? -1 : 1;
+    const clamp = () => {
+      this.x = Math.max(this.minX, Math.min(this.maxX, this.x));
+      this.y = Math.max(this.minY, Math.min(this.maxY, this.y));
+    };
+    switch (this.action) {
+      case "walk": {
+        const tx = player ? player.cx - this.w / 2 : this.x;
+        const ty = player ? player.cy - this.h / 2 : this.hoverY;
+        this.x += Math.sign(tx - this.x) * this.speed * dt;
+        this.y += Math.sign(ty - this.y) * this.speed * 0.55 * dt;
+        this.y += Math.sin(this.krakBob * 2) * 14 * dt; // gentle bob
+        clamp();
+        this.moveTimer -= dt;
+        if (this.moveTimer <= 0) {
+          this.pending = this._pickMove();
+          this.action = "telegraph";
+          this.tTimer = this.telegraphDur;
+          this.telegraph = true;
+        }
+        break;
+      }
+      case "telegraph": {
+        this.tTimer -= dt;
+        if (this.tTimer <= 0) {
+          this.telegraph = false;
+          this._execute(this.pending, player, game);
+        }
+        break;
+      }
+      case "charge": {
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        clamp();
+        this.cTimer -= dt;
+        if (this.cTimer <= 0 || this.x <= this.minX || this.x >= this.maxX) {
+          this.action = "walk";
+          this.moveTimer = this.cooldown;
+          this.vy = 0;
+        }
+        break;
+      }
+      default:
+        this.action = "walk";
+        this.moveTimer = this.cooldown;
+    }
   }
   update(dt, world, player, game) {
     if (this.invuln > 0) this.invuln -= dt;
@@ -1172,6 +1246,12 @@ export class Bowser extends Body {
       this.vy += GRAVITY * dt;
       this.y += this.vy * dt;
       this.deadTimer += dt;
+      return;
+    }
+
+    // The underwater kraken hovers (no gravity) — its own movement model.
+    if (this.variant === "kraken") {
+      this._krakenUpdate(dt, world, player, game);
       return;
     }
 
@@ -1273,6 +1353,26 @@ export class Bowser extends Body {
         this.action = "walk";
         this.moveTimer = this.cooldown;
         break;
+      case "ink":
+        game.bossInk(this, player);
+        this.action = "walk";
+        this.moveTimer = this.cooldown;
+        break;
+      case "summon":
+        game.summonCheep(this, player);
+        this.action = "walk";
+        this.moveTimer = this.cooldown;
+        break;
+      case "lunge": {
+        const dir = player ? Math.sign(player.cx - this.cx) || this.facing : this.facing;
+        const dyn = player ? Math.sign(player.cy - this.cy) : 0;
+        this.vx = dir * (this.enraged ? 440 : 340);
+        this.vy = dyn * 160;
+        this.cTimer = 0.55;
+        this.action = "charge";
+        game.audio.bossRoar();
+        break;
+      }
       case "slam":
         this.vy = -740;
         this.vx = this.facing * 80;
@@ -1292,7 +1392,12 @@ export class Bowser extends Body {
     }
   }
   draw(ctx) {
-    const draw = this.variant === "mini" ? Sprites.drawHammerKing : Sprites.drawBowser;
+    const draw =
+      this.variant === "mini"
+        ? Sprites.drawHammerKing
+        : this.variant === "kraken"
+        ? Sprites.drawKraken
+        : Sprites.drawBowser;
     draw(
       ctx,
       { x: this.x, y: this.y, w: this.w, h: this.h },

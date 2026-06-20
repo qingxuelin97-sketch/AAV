@@ -6,7 +6,7 @@ persistent global leaderboard. **No game art, sprite sheets, or audio files** �
 every visual is drawn with canvas primitives and every sound is synthesized with
 the Web Audio API, so the whole thing is self-contained.
 
-![levels](https://img.shields.io/badge/levels-15%20%2B%203%20bosses-e52521) ![tests](https://img.shields.io/badge/tests-141%20passing-5fe06b)
+![levels](https://img.shields.io/badge/levels-15%20%2B%204%20bosses-e52521) ![tests](https://img.shields.io/badge/tests-147%20passing-5fe06b)
 
 ## Features
 
@@ -35,14 +35,16 @@ the Web Audio API, so the whole thing is self-contained.
   gravity you fight with repeatable **strokes** (tap jump to paddle up, release
   to sink), a sandy seabed with coral pillars to swim over, and **Cheep Cheep**
   fish patrolling wavy lanes that you pop with a fireball, boomerang or star.
-- **Three detailed, multi-attack bosses with chunky segmented health bars** — a
+- **Four detailed, multi-attack bosses with chunky segmented health bars** — a
   mid-game **Hammer King** (5 HP), a fast single-phase **Shadow Bowser** (7 HP),
-  and a climactic **three-phase Bowser** (6 HP × 3). Each telegraphs then picks
-  from several moves: **fire stream**, **3-way spread**, **leaping ground slam**
-  (with shockwaves), a **rushing charge**, and — in the final phase — a **rain
-  of fireballs**. He rages faster each phase. The boss bar is a thick, glossy,
-  segmented gauge with per-phase pips. Beat him with projectiles or the bridge
-  **axe**; stomping fails.
+  a hovering underwater **Kraken / 深海霸王** (6 HP × 2 — spits ink fans, summons
+  Cheep Cheep escorts and lunges), and a climactic **three-phase Bowser**
+  (6 HP × 3). Each telegraphs then picks from several moves: **fire stream**,
+  **3-way spread/ink**, **leaping ground slam** (with shockwaves), a **rushing
+  charge/lunge**, and — in Bowser's final phase — a **rain of fireballs**. They
+  rage faster each phase. The boss bar is a thick, glossy, segmented gauge with
+  per-phase pips. Beat them with projectiles or the bridge **axe**; stomping
+  fails.
 - **Six power-up forms, each with a clear role** (a data-driven table drives
   pickups + tooltips; grabbing a form you already have stashes a spare):
   - 🍄 **Mushroom** — grow / take an extra hit.
@@ -70,6 +72,9 @@ the Web Audio API, so the whole thing is self-contained.
 - **Animation & game-feel polish** — idle breathing + blink, a dedicated swim
   stroke pose, power-up collect sparkles, rising air bubbles underwater, plus
   the existing squash-and-stretch, dust and screen-shake.
+- **Atmospheric ambient particles** — drifting petals by day, fireflies at
+  night, embers rising in the castle, bubbles underwater, and bobbing coins
+  drifting behind the title logo.
 - **Interactive blocks** — `?` blocks (coins / mushroom→fire / ice / star /
   1-up), breakable bricks (when powered up) with flying debris, animated coins.
 - **Scoring** — stomps, shell kicks, projectile kills, coins, bricks,
@@ -116,14 +121,15 @@ Then open <http://localhost:3000>.
 npm test
 ```
 
-141 tests cover level integrity, collision/physics edge cases (gravity, walls,
+147 tests cover level integrity, collision/physics edge cases (gravity, walls,
 pits, growing/shrinking, enemy ledge-turning), **underwater swim physics**, every
 power-up (fire/ice/leaf glide+spin/boomerang/star/reserve), enemy behaviours
 (incl. the un-stompable **Spiny**, the de-winging **Paratroopa** and the
-**Cheep Cheep**), the three-phase boss fight (phases, axe, fire-breath), a
-headless run of the full game loop — and, crucially, an **auto-pilot that proves
-every non-boss level (land and water) is actually completable** (it runs, jumps
-and swims each level using the real physics; any level it can't clear fails CI).
+**Cheep Cheep**), all four bosses (Hammer King, Shadow Bowser, the hovering
+**Kraken**, and the three-phase Bowser — phases, axe, fire-breath), a headless
+run of the full game loop — and, crucially, an **auto-pilot that proves every
+non-boss level (land and water) is actually completable** (it runs, jumps and
+swims each level using the real physics; any level it can't clear fails CI).
 
 ## API
 
